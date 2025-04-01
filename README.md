@@ -26,3 +26,19 @@ A lightweight tool for forecasting stock volatility using ultra-high-frequency d
 - **Data Exploration:** Mapped data sources, noted key assumptions, and outlined data owner priorities.
 - **Model Options Explored:** Evaluated potential machine learning models suitable for our needs.
 - **Performance Metrics Set:** Selected key metrics (e.g., MAE, RMSE) to measure model accuracy.
+
+## Week 06: Summary
+
+### 1. Framer Website & Presentation Flow Chart
+- Learn Framer via crash course videos and explore templates.
+- Build a basic website to present project findings.
+- Design a preliminary flow chart outlining the final presentation structure.
+
+### 2. Noise Reduction Research
+- Investigate methods to reduce noise in the mid-point from the Bid-Ask Spread affecting realised volatility.
+- Compare approaches such as adjusted realised volatility, the realised kernel estimator, and alternatives like the Lee-Ready algorithm.
+- Assess their applicability to our two-level LOB data.
+
+### 3. Feature Engineering
+- Use a 1,000-row subset of LOB data to develop new features (e.g., midpoint, bid-ask spread, LOB spread curve, realised volatility, etc.).
+- Document the rationale and methodology for each feature.
