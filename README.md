@@ -69,9 +69,3 @@ A lightweight tool for forecasting stock volatility using ultra-high-frequency d
   - SHL and MHL Neural Networks
   - Ridge Regression
 - Compared model performance using plots to check for accuracy and signs of overfitting.
-
-### 4. Next Steps (Week 08 Preview)
-
-- Plan to further compare the performance of different models for a final ensemble.
-- Test model efficiency on dataset subsets and explore scalability to the complete dataset.
-- Begin refining the final presentation to highlight progress and insights.
