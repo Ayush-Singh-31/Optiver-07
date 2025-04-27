@@ -72,10 +72,8 @@ A lightweight tool for forecasting stock volatility using ultra-high-frequency d
 
 ## Week 08 : Feature Finalization & Preliminary Model Development
 
-- Finalized a comprehensive feature set—mid-price, spread, imbalance, micro-price, entropy, log-returns, realised volatility, bi-power variance, rolling integrated variance—to capture both static and dynamic market microstructure signals. :contentReference[oaicite:0]{index=0}&#8203;:contentReference[oaicite:1]{index=1}
-- Standardized each 10-minute bucket to a fixed one-second timeline via full reindexing and forward-fill, ensuring uniform time grids and no missing observations across all feature streams. :contentReference[oaicite:2]{index=2}&#8203;:contentReference[oaicite:3]{index=3}
-- Normalized and re-labelled identifiers by mapping original stock IDs and time buckets to sequential integers, enabling consistent merging, model input alignment, and downstream analysis. :contentReference[oaicite:4]{index=4}&#8203;:contentReference[oaicite:5]{index=5}
-- Developed and tested preliminary ML models on a subset of the dataset, including ANN-ARCH, CNN-LSTM, Lasso, LSTM, Random Forest, Ridge Regression, and MHL Neural Network. :contentReference[oaicite:6]{index=6}&#8203;:contentReference[oaicite:7]{index=7}
-- Identified open challenges: handling missing `seconds_in_bucket`, selecting final models and forming an ensemble, preventing overfitting, scaling to 127 datasets via online learning, and choosing model-specific features. :contentReference[oaicite:8]{index=8}&#8203;:contentReference[oaicite:9]{index=9}
-
-**Next Steps:** Finalize the preprocessing pipeline and feature implementation, unify model code and evaluation metrics, commence ensemble construction and performance benchmarking, and prepare updated presentation materials for Week 09.
+- Finalized a comprehensive feature set—mid-price, spread, imbalance, micro-price, entropy, log-returns, realised volatility, bi-power variance, rolling integrated variance—to capture both static and dynamic market microstructure signals.
+- Standardized each 10-minute bucket to a fixed one-second timeline via full reindexing and forward-fill, ensuring uniform time grids and no missing observations across all feature streams. 
+- Normalized and re-labelled identifiers by mapping original stock IDs and time buckets to sequential integers, enabling consistent merging, model input alignment, and downstream analysis. 
+- Developed and tested preliminary ML models on a subset of the dataset, including ANN-ARCH, CNN-LSTM, Lasso, LSTM, Random Forest, Ridge Regression, and MHL Neural Network. 
+- Identified open challenges: handling missing `seconds_in_bucket`, selecting final models and forming an ensemble, preventing overfitting, scaling to 127 datasets via online learning, and choosing model-specific features.
