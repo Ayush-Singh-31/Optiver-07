@@ -1,0 +1,26 @@
+---
+title: "DATA3888: Unit Assignment"
+author: "Optiver 07"
+date: "2025-05-24"
+format:
+  html:
+    code-tools: true
+    code-fold: false
+    fig_caption: yes
+    number_sections: true
+    embed-resources: true
+    theme: cosmo
+    css: 
+      - https://use.fontawesome.com/releases/v5.0.6/css/all.css
+    toc: true
+    toc_depth: 4
+    toc_float: true
+execute:
+  echo: true
+  tidy: true
+---
+
+```{python}
+
+```
+
