@@ -20,7 +20,7 @@ execute:
   tidy: true
 ---
 
-```{python}
+```{python, eval=FALSE}
 
 ```
 
