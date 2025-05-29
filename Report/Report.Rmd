@@ -12,7 +12,7 @@ format:
     theme: cosmo
     css:
       - https://use.fontawesome.com/releases/v5.0.6/css/all.css
-      - styles.css      # <— your custom CSS file
+      - styles.css      
     toc: true
     toc_depth: 4
     toc_float: true
