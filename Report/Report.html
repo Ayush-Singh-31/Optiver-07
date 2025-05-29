@@ -9,11 +9,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Optiver 07" />
+<meta name="author" content="Tobit Louis" />
 
 <meta name="date" content="2025-05-24" />
 
-<title>DATA3888: Unit Assignment</title>
+<title>DATA3888: Predicting Stock Volatility</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -253,6 +253,29 @@ if (window.hljs) {
 
 
 
+<style type="text/css">
+
+div.csl-bib-body { }
+div.csl-entry {
+clear: both;
+margin-bottom: 0em;
+}
+.hanging div.csl-entry {
+margin-left:2em;
+text-indent:-2em;
+}
+div.csl-left-margin {
+min-width:2em;
+float:left;
+}
+div.csl-right-inline {
+margin-left:2em;
+padding-left:1em;
+}
+div.csl-indent {
+margin-left: 2em;
+}
+</style>
 
 
 
@@ -350,14 +373,155 @@ display: none;
 
 
 
-<h1 class="title toc-ignore">DATA3888: Unit Assignment</h1>
-<h4 class="author">Optiver 07</h4>
+<h1 class="title toc-ignore">DATA3888: Predicting Stock Volatility</h1>
+<h4 class="author">Tobit Louis</h4>
 <h4 class="date">2025-05-24</h4>
 
 </div>
 
 
+<div id="interpretability" class="section level2">
+<h2>Interpretability</h2>
+<p>Transformers have revolutionized sequence modeling by using
+self-attention to weigh every input position against every other, but
+this very strength makes them hard to interpret. In our volatility
+model, the lack of positional encodings and the use of global average
+pooling further obscure how the network arrives at its forecasts.</p>
+<p>One natural way to open the “black box” is to visualize the attention
+weights themselves. By plotting attention maps for each head and layer,
+we can see which past time buckets the model emphasizes—revealing, for
+instance, whether it zeroes in on sudden price jumps or sustained
+order-flow imbalances. In parallel, model-agnostic tools such as LIME
+and SHAP can approximate the transformer’s behavior around a single
+forecast, attributing portions of the output to each input feature. For
+PyTorch implementations, Captum provides built-in gradient- and
+perturbation-based attributions, letting us drill down into any
+layer—even the pooling step—to understand how information flows through
+the network <span class="citation">(Hub 2024)</span>.</p>
+<p>Looking further ahead, the emerging field of mechanistic
+interpretability (MI) offers a more fundamental approach. As
+demonstrated by Rai et al. (2024), MI aims to transform
+transformer-based language models from opaque black boxes into
+transparent, controllable systems by reverse-engineering their internal
+computations—neurons, attention heads, and composite circuits—into
+human-understandable mechanisms <span class="citation">(Rai et al.
+2024)</span>. In our context, MI could pinpoint exactly which attention
+head signals an imminent spike in volatility, enabling targeted
+fine-tuning, bias mitigation, or safety audits. Together, these
+methods—from attention visualization and LIME/SHAP explanations to
+cutting-edge MI—provide a clear roadmap for making transformer-based
+volatility models both powerful and transparent.</p>
+<p>LSTM networks remain opaque despite their power to learn nonlinear
+temporal patterns, because their high-dimensional hidden states and
+feedback loops cannot be reduced to clear, human-readable drivers. As
+Firouzjaee and Khalilian show in oil-stock forecasting, even adding
+highly correlated inputs like crude oil, gold, or USD prices does not
+improve an LSTM’s core interpretability, since feature augmentation
+alone cannot expose its internal decision logic <span class="citation">(Firouzjaee and Khaliliyan 2024)</span>. As a result,
+although LSTMs excel at prediction, they offer little insight into which
+factors truly drive their forecasts. Addressing this “black-box” nature
+requires specialized interpretability techniques—such as state-space
+analysis, attention-augmented RNNs, or hybrid models—to bridge accuracy
+and transparency in financial applications.</p>
+<p>Random forests also sacrifice some interpretability compared to
+single decision trees, but they are not entirely “black box.” By
+averaging many trees, they deliver strong predictive power while still
+offering ensemble-level diagnostics. Each tree’s split logic remains
+fully inspectable, allowing you to trace the exact path for any
+prediction. Global measures like mean decrease in impurity and
+permutation importance rank features by overall influence, and partial
+dependence or ICE plots reveal how changes in key predictors affect
+outputs on average or for individual instances. Out-of-bag estimates
+provide nearly unbiased error and importance metrics without separate
+validation. Together, these built-in tools make random forests far more
+interpretable than most deep “black-box” models, even if they don’t
+match the simplicity of a single tree <span class="citation">(Grigg
+2019)</span>.</p>
+<pre class="python"><code># Get feature importances
+importances = rf.feature_importances_
 
+# Sort feature importances in descending order
+indices = np.argsort(importances)[::-1]
+
+# Print the feature ranking
+print(&quot;Feature ranking:&quot;)
+
+for f in range(len(feature_cols_mod)):
+    print(f&quot;{f + 1}. feature {indices[f]} ({importances[indices[f]]}) - {feature_cols_mod[indices[f]]}&quot;)
+
+# Plot the feature importances of the forest
+plt.figure()
+plt.title(&quot;Feature importances&quot;)
+plt.bar(range(len(feature_cols_mod)), importances[indices], align=&quot;center&quot;)
+plt.xticks(range(len(feature_cols_mod)), [feature_cols_mod[i] for i in indices], rotation=90)
+plt.xlim([-1, len(feature_cols_mod)])
+plt.show()</code></pre>
+<p>Specifically to our project, the random forest indentified ___ as the
+most importance features.</p>
+</div>
+<div id="limitations" class="section level2">
+<h2>Limitations</h2>
+<p>Although the transformer model outperforms our other approaches, it
+has several constraints that may limit its practical use. First, we
+restricted the context window to 30 time steps—this may miss important
+longer-range dependencies if volatility patterns span beyond a
+half-minute interval. Second, our implementation uses only two encoder
+layers and a modest embedding size (d_model = 64), which may be
+insufficient to capture intricate, multi-scale dynamics in
+high-frequency data. Third, transformers are prone to overfitting, and
+even with early stopping this risk remains if the validation split does
+not fully represent market regimes. Finally, the heavy computation
+required by self-attention often forces compromises in data breadth: we
+trained on only a subset of stocks and files. If these trade-offs prove
+unacceptable, Optiver may need to scale up hardware, prune or distill
+the model, or fall back to simpler architectures.</p>
+<p>Our LSTM suffers from related challenges. While two layers of 64 and
+32 units coupled with dropout can learn nonlinear temporal patterns, the
+same 30-step window may not align with true autocorrelation horizons.
+Without additional regularization or batch normalization, dropout alone
+may not prevent overfitting—especially when model complexity outpaces
+training data. And, like transformers, LSTMs offer limited visibility
+into their hidden-state dynamics.</p>
+<p>Random forests sidestep many of these issues by fixing model
+complexity and avoiding sequence recursion, but they treat each bucket
+independently, failing to exploit the temporal order inherent in time
+series. This requires extensive feature engineering—lags, rolling
+statistics, seasonal indicators—to expose trends and autocorrelation.
+Furthermore, random forests assume stationarity and can still overfit if
+trees grow too deep, which is why we capped depth at 12.</p>
+<p>Across all models, our use of MinMax scaling presumes that the
+distribution of prices remains constant between training and deployment.
+Because MinMaxScaler is sensitive to extreme values, any outliers in
+stock prices can distort feature ranges and destabilize predictions.
+More robust scaling methods or outlier‐mitigation steps may be necessary
+to ensure consistency on new data.</p>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">
+<div id="ref-Firouzjaee2024" class="csl-entry">
+Firouzjaee, Javad T., and Pouriya Khaliliyan. 2024. <span>“The
+Interpretability of LSTM Models for Predicting Oil Company Stocks:
+Impact of Correlated Features.”</span> <em>International Journal of
+Energy Research</em> 2024: 5526692. <a href="https://doi.org/10.1155/2024/5526692">https://doi.org/10.1155/2024/5526692</a>.
+</div>
+<div id="ref-Grigg2019" class="csl-entry">
+Grigg, Tom. 2019. <span>“Interpretability and Random Forests.”</span>
+April 8, 2019. <a href="https://medium.com/data-science/interpretability-and-random-forests-4fe13a79ae34">https://medium.com/data-science/interpretability-and-random-forests-4fe13a79ae34</a>.
+</div>
+<div id="ref-Lakham2024" class="csl-entry">
+Hub, A. I. 2024. <span>“Decoding the Black Box: Transformer Model
+Interpretability and Experimental Visualization.”</span> August 16,
+2024. <a href="https://yashvaantlakham73.medium.com/decoding-the-black-box-3e608417a1e1">https://yashvaantlakham73.medium.com/decoding-the-black-box-3e608417a1e1</a>.
+</div>
+<div id="ref-rai2024practical" class="csl-entry">
+Rai, Daking, Yilun Zhou, Shi Feng, Abulhair Saparov, and Ziyu Yao. 2024.
+<span>“A Practical Review of Mechanistic Interpretability for
+Transformer‐based Language Models.”</span> <em>arXiv Preprint
+arXiv:2407.02646</em>. <a href="https://doi.org/10.48550/arXiv.2407.02646">https://doi.org/10.48550/arXiv.2407.02646</a>.
+</div>
+</div>
+</div>
 
 
 
