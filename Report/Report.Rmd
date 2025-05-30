@@ -95,15 +95,7 @@ This trio allows us to assess both statistical performance and practical utility
 
 ## Fair Comparison
 
-To ensure a level playing field across models:
-
-* We applied a **consistent preprocessing pipeline**—including feature generation via `make_features`, log-transformation of the target, and MinMax scaling of inputs—for all models.
-
-* We used **chronological session-based splitting** based on `time_id` to preserve the temporal order and prevent forward-looking bias. An 80/10/10 train-validation-test split ensured strict separation between training and future data.
-
-* All performance metrics were calculated **only on the held-out test sessions**, which were never seen during model training or validation.
-
-This careful setup ensures that performance differences are due to the models themselves—not inconsistencies in data handling or leakage from future information.
+To keep model comparisons fair, we used the same feature engineering pipeline (make_features) and preprocessing (including scaling) across all models. Input features were kept consistent, and target labels were log-transformed in the same way where applicable. All models were trained and tested on the same temporal splits of the data, using time_id as a session boundary. This session-based splitting preserves time-series structure and prevents leakage, allowing us to compare models under the exact same conditions. Final metrics were computed strictly on held-out test sessions, untouched during training and validation, ensuring that evaluation results reflect true generalisation performance rather than overfitting or tuning artefacts.
 
 
 # Key Findings
