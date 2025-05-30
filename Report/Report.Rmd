@@ -1,6 +1,6 @@
 ---
 title: "DATA3888: Predicting Stock Volatility"
-author: "Tobit Louis, Kylie Haryono, Christy Lee"
+author: "Tobit Louis, Kylie Haryono, Christy Lee, Zichun Han"
 date: "2025-05-24"
 format:
   html:
@@ -77,27 +77,96 @@ Finally, we implemented a heteroskedasticity-aware WLS model in statsmodels to f
 
 ## Metrics Used
 
-In evaluating the models, there were 3 metrics that are used for comparison: R-squared (R2), QLIKE loss, and Mean Squared Error (MSE). R-squared measures how much variance in the target is explained by the model, and a higher r-squared means better model fit. This makes it valuable for assessing general model accuracy. QLIKE loss is specifically designed for volatility forecasting, penalising inaccurate volatility forecasts, especially when predicted variances are too low. This matters in financial risk settings, such as in underestimating spikes. A lower QLIKE shows that it is more reliable in high-risk or volatile environments. MSE calculates the average squared difference between predicted and actual values. Its sensitivity to outliers helps capture how inaccurate a model might be on extreme values, making it useful for direct interpretation of raw prediction error, complementary to QLIKE.
+To evaluate model performance comprehensively, we used three complementary metrics:
 
-R2 and MSE show how well a model fits, while QLIKE captures the financial impact of the errors. Together, these allow us to evaluate the general predictive power (R2), domain-specific volatility reliability (QLIKE), and outlier sensitivity (MSE).
+* **R-squared (R²)**: This measures how much of the variance in the target variable is explained by the model. A higher R² means the model's predictions align more closely with actual volatility, giving a good sense of overall fit.
 
+* **QLIKE (Quasi-Likelihood) Loss**: Tailored for volatility forecasting, QLIKE penalises underestimates more heavily than overestimates. This is especially important in financial risk settings, where underpredicting volatility can lead to poor hedging or mispricing.
+
+* **Mean Squared Error (MSE)**: MSE calculates the average squared difference between predictions and actual values. It’s sensitive to large errors, making it a good measure of overall prediction accuracy.
+
+Together, these metrics offer a balanced view:
+
+* R² captures general trend fit,
+* QLIKE evaluates calibration during volatility spikes,
+* MSE reflects how the model handles large deviations.
+
+This trio allows us to assess both statistical performance and practical utility in real-world forecasting.
 
 ## Fair Comparison
 
-To keep model comparisons fair, we used the same feature engineering pipeline (make_features) and preprocessing (including scaling) across all models. Input features were kept consistent, and target labels were log-transformed in the same way where applicable. All models were trained and tested on the same temporal splits of the data, using time_id as a session boundary. This session-based splitting preserves time-series structure and prevents leakage, allowing us to compare models under the exact same conditions. Final metrics were computed strictly on held-out test sessions, untouched during training and validation, ensuring that evaluation results reflect true generalisation performance rather than overfitting or tuning artefacts.
+To ensure a level playing field across models:
+
+* We applied a **consistent preprocessing pipeline**—including feature generation via `make_features`, log-transformation of the target, and MinMax scaling of inputs—for all models.
+
+* We used **chronological session-based splitting** based on `time_id` to preserve the temporal order and prevent forward-looking bias. An 80/10/10 train-validation-test split ensured strict separation between training and future data.
+
+* All performance metrics were calculated **only on the held-out test sessions**, which were never seen during model training or validation.
+
+This careful setup ensures that performance differences are due to the models themselves—not inconsistencies in data handling or leakage from future information.
 
 
 # Key Findings
 
-[bar plots]
+## Bar Plots of Mean MSE, QLIKE, and R² by Model
 
-In terms of accuracy, the transformer model outperformed all the other models. It achieved the lowest MSE and QLIKE, and the highest R2 on test data. This indicates a strong ability to capture complex, non-linear patterns in volatility.
+```{r include-model-plot, echo=FALSE, out.width='100%', fig.cap="Bar plots of Mean MSE, QLIKE, and R² by Model"}
+knitr::include_graphics("model_comparison.png")
+```
 
-Although LSTM had a slightly higher MSE than the Transformer, it still had a strong R2 and competitive QLIKE. It showed a higher level of consistency than Random Forest, indicating a better generalisation on sequential data. 
+### Transformer: Top Performance, Limited Transparency
 
-Random Forest performed better than WLS, but performance dropped due to the inability to model time-based patterns. This highlights the limits of static, tree-based models for time-series volatility. On the other hand, WLS was the weakest performer, but it established a useful baseline. It had the lowest R2 and higher QLIKE, showing that deep learning models deliver real gains over simple linear baselines, particularly on volatility data.
+The Transformer stood out across all metrics:
 
-While Transformer delivered the highest predictive accuracy across all metrics, its complexity and opacity raise practical concerns for real-world trading deployment.
+* Lowest MSE and QLIKE, indicating strong accuracy and reliability under volatile conditions.
+* Highest R², showing excellent fit to actual trends.
+
+Its self-attention mechanism enables the model to capture intricate temporal and nonlinear relationships in the limit order book (LOB). However, the downside is reduced interpretability, which can be a drawback in regulated or real-time settings.
+
+### LSTM: Stable and Sequentially Aware
+
+LSTM followed closely behind, with:
+
+* Slightly higher MSE than the Transformer,
+* Comparable QLIKE and R².
+
+This indicates that LSTM, while simpler, still models sequential LOB dynamics effectively. It’s a strong candidate when computational resources are limited or model explainability is a concern.
+
+### Random Forest: Reliable Static Baseline
+
+Random Forest performed well for a non-sequential model:
+
+* Outperformed WLS across all metrics,
+* Achieved decent QLIKE and R² scores.
+
+Its main limitation is the inability to directly model temporal dependencies. However, with engineered time-lagged features, it offers good predictive power and strong explainability via feature importance—useful for real-time systems requiring quick insights.
+
+### WLS: Transparent but Weak
+
+WLS lagged behind:
+
+* Lowest R² and highest QLIKE,
+* Moderate MSE but poor calibration for volatility.
+
+Still, its simplicity and transparency make it a valuable baseline for benchmarking and for interpreting how features relate to outcomes.
+
+## Summary Table
+
+```{r, echo=FALSE}
+# Example summary table (replace with actual values or DT::datatable)
+summary_df <- data.frame(
+  Model = c("Transformer", "LSTM", "Random Forest", "WLS"),
+  Strengths = c("Best accuracy; learns complex temporal features",
+                "Strong sequence modeling; stable performance",
+                "Moderate accuracy; interpretable with feature importances",
+                "Transparent; fast; strong baseline"),
+  Weaknesses = c("High computational cost, low interpretability",
+                 "Less accurate than Transformer; harder to interpret",
+                 "No inherent temporal modeling",
+                 "Poor fit and calibration in volatile conditions")
+)
+knitr::kable(summary_df, caption = "Comparison of Strengths and Weaknesses Across Models")
+```
 
 
 # Further Discussion
