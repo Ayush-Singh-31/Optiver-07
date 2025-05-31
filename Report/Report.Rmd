@@ -1,22 +1,20 @@
 ---
 title: "DATA3888: Predicting Stock Volatility"
-author: "Tobit Louis, Kylie Haryono, Christy Lee, Zichun Han"
+author: "Ayush Singh, Tobit Louis, Kylie Haryono, Christy Lee, Zichun Han"
 date: "2025-05-24"
 format:
   html:
     code-tools: true
-    code-fold: true
+    code-fold: false
     fig_caption: yes
     number_sections: true
     embed-resources: true
     theme: cosmo
-    css:
+    css: 
       - https://use.fontawesome.com/releases/v5.0.6/css/all.css
-      - styles.css      
     toc: true
     toc_depth: 4
     toc_float: true
-bibliography: references.bib
 execute:
   echo: true
   tidy: true
@@ -252,3 +250,953 @@ While the Transformer model offers superior accuracy, its complexity and opacity
 
 
 # References
+
+## Code
+
+### Imports
+
+```{python, eval=FALSE}
+# Core libraries
+import os                                   
+import random                              
+import warnings                           
+
+# Numerical and data handling
+import numpy as np                         
+import pandas as pd                     
+import polars as pl                       
+
+# Visualization
+import matplotlib.pyplot as plt           
+
+# File handling
+from glob import glob                     
+
+# Preprocessing and feature selection
+from sklearn.preprocessing import MinMaxScaler, StandardScaler 
+from sklearn.feature_selection import VarianceThreshold, mutual_info_regression  
+
+# Classical models
+from sklearn.linear_model import LinearRegression             
+from sklearn.ensemble import RandomForestRegressor            
+
+# Unsupervised learning
+from sklearn.cluster import KMeans                            
+
+# Evaluation metrics
+from sklearn.metrics import r2_score, mean_squared_error, root_mean_squared_error  
+from scipy.stats import skew, pearsonr                        
+
+# Statistical modeling
+import statsmodels.api as sm                                  
+
+# Deep learning (TensorFlow/Keras)
+import tensorflow as tf                                     
+from tensorflow import keras                                 
+from tensorflow.keras import layers, models, callbacks        
+from tensorflow.keras.models import Sequential               
+from tensorflow.keras.layers import LSTM, Dense, Dropout      
+from tensorflow.keras.callbacks import EarlyStopping
+```
+
+### Warnings
+
+```{python, eval=FALSE}
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+```
+
+### Combining Raw Data
+
+```{python, eval=FALSE}
+# Get sorted list of all CSV file paths in the directory
+csv_files = sorted(glob("Data/individual_book_train/*.csv"))
+
+# Define column data types
+schema = {
+    'time_id': pl.Int32,
+    'seconds_in_bucket': pl.Int32,
+    'bid_price1': pl.Float32,
+    'ask_price1': pl.Float32,
+    'bid_price2': pl.Float32,
+    'ask_price2': pl.Float32,
+    'bid_size1': pl.Int32,
+    'ask_size1': pl.Int32,
+    'bid_size2': pl.Int32,
+    'ask_size2': pl.Int32,
+    'stock_id': pl.Int32,
+}
+
+# Lazily scan CSVs with predefined schema (no type inference)
+ldf = pl.scan_csv(
+    csv_files,
+    schema_overrides=schema,
+    infer_schema_length=0  
+)
+
+# Load into memory
+df = ldf.collect()
+
+# Write to Parquet with Snappy compression
+df.write_parquet("Data/112Stocks.parquet", compression="snappy")
+```
+
+### Global Parameters
+
+```{python, eval=FALSE}
+# reproducibility
+RANDOM_STATE = 42
+# outlier filtering
+VOLATILITY_IQR_MULTIPLIER = 1.5
+# clustering
+N_CLUSTERS = 5
+# modeling threshold
+MIN_PERIODS_FOR_MODEL = 10
+# metric weights
+R2_WEIGHT = 0.5
+QLIKE_WEIGHT = 0.5
+# numerical stability
+EPSILON = 1e-12
+# model input length
+SEQ_LEN = 30
+```
+
+### Helper Functions
+
+```{python, eval=FALSE}
+def calculate_basic_features_snapshot(df_slice):
+    features = pd.DataFrame(index=df_slice.index)
+    # micro price (weighted mid-price)
+    features['micro_price'] = (df_slice['bid_price1'] * df_slice['ask_size1'] + \
+                               df_slice['ask_price1'] * df_slice['bid_size1']) / \
+                              (df_slice['bid_size1'] + df_slice['ask_size1'] + EPSILON)
+    # fallback to mid-price if NaN
+    features['micro_price'] = features['micro_price'].fillna((df_slice['bid_price1'] + df_slice['ask_price1']) / 2)
+    # top-of-book spreads
+    features['spread1'] = df_slice['ask_price1'] - df_slice['bid_price1']
+    features['spread2'] = df_slice['ask_price2'] - df_slice['bid_price2']
+    # size imbalance at level 1
+    features['imbalance_size1'] = (df_slice['bid_size1'] - df_slice['ask_size1']) / \
+                                  (df_slice['bid_size1'] + df_slice['ask_size1'] + EPSILON)
+    # aggregated book pressure (level 1 + 2)
+    sum_bid_sizes = df_slice['bid_size1'] + df_slice['bid_size2']
+    sum_ask_sizes = df_slice['ask_size1'] + df_slice['ask_size2']
+    features['book_pressure'] = sum_bid_sizes / (sum_bid_sizes + sum_ask_sizes + EPSILON)
+    return features
+```
+
+```{python, eval=FALSE}
+def calculate_time_id_features(df_group):
+    df_group = df_group.sort_values('seconds_in_bucket').copy()
+    snapshot_features = calculate_basic_features_snapshot(df_group)
+
+    # log returns of micro price
+    log_returns = np.log(snapshot_features['micro_price'] / snapshot_features['micro_price'].shift(1))
+    log_returns = log_returns.replace([np.inf, -np.inf], np.nan).dropna()
+
+    results = {}
+    # volatility and skewness
+    results['realized_volatility'] = np.std(log_returns) if len(log_returns) > 1 else 0
+    results['realized_skewness'] = skew(log_returns) if len(log_returns) > 1 else 0
+    # autocorrelation of log returns
+    if len(log_returns) > 2:
+        ac, _ = pearsonr(log_returns.iloc[1:], log_returns.iloc[:-1])
+        results['autocorrelation_log_returns'] = ac if not np.isnan(ac) else 0
+    else:
+        results['autocorrelation_log_returns'] = 0
+
+    # basic aggregated features
+    results['tick_frequency'] = len(df_group)
+    results['mean_micro_price'] = snapshot_features['micro_price'].mean()
+    results['mean_spread1'] = snapshot_features['spread1'].mean()
+    results['mean_spread2'] = snapshot_features['spread2'].mean()
+    results['mean_imbalance_size1'] = snapshot_features['imbalance_size1'].mean()
+    results['mean_book_pressure'] = snapshot_features['book_pressure'].mean()
+    results['mean_bid_size1'] = df_group['bid_size1'].mean()
+    results['mean_ask_size1'] = df_group['ask_size1'].mean()
+    results['mean_bid_size2'] = df_group['bid_size2'].mean()
+    results['mean_ask_size2'] = df_group['ask_size2'].mean()
+
+    return pd.Series(results)
+```
+
+```{python, eval=FALSE}
+def qlike_loss(y_true, y_pred):
+    # avoid division/log(0)
+    y_pred = np.maximum(y_pred, EPSILON)
+    y_true = np.maximum(y_true, 0)
+    valid_indices = (y_true > EPSILON)
+    if not np.any(valid_indices):
+        return np.nan
+    # compute QLIKE loss on valid data
+    y_true_f = y_true[valid_indices]
+    y_pred_f = y_pred[valid_indices]
+    y_pred_f = np.maximum(y_pred_f, EPSILON)
+    loss = np.mean(y_true_f / y_pred_f - np.log(y_true_f / y_pred_f) - 1)
+    return loss
+```
+
+### Feature Generation
+
+```{python, eval=FALSE}
+print("Calculating features per stock_id and time_id.")
+stock_time_id_features = df.groupby(['stock_id', 'time_id']).apply(calculate_time_id_features).reset_index()
+print(f"Calculated detailed features for {stock_time_id_features.shape[0]} stock/time_id pairs.")
+print(stock_time_id_features.head())
+```
+
+### Filtering
+
+```{python, eval=FALSE}
+# compute mean realized volatility per stock
+overall_stock_mean_rv = stock_time_id_features.groupby('stock_id')['realized_volatility'].mean().reset_index()
+overall_stock_mean_rv = overall_stock_mean_rv.rename(columns={'realized_volatility': 'mean_realized_volatility'})
+
+# define IQR bounds
+q1 = overall_stock_mean_rv['mean_realized_volatility'].quantile(0.25)
+q3 = overall_stock_mean_rv['mean_realized_volatility'].quantile(0.75)
+iqr = q3 - q1
+lower_bound = q1 - VOLATILITY_IQR_MULTIPLIER * iqr
+upper_bound = q3 + VOLATILITY_IQR_MULTIPLIER * iqr
+
+# filter stocks within bounds and above tiny volatility threshold
+epsilon_vol = 1e-7
+filtered_stocks_info = overall_stock_mean_rv[
+    (overall_stock_mean_rv['mean_realized_volatility'] >= lower_bound) &
+    (overall_stock_mean_rv['mean_realized_volatility'] <= upper_bound) &
+    (overall_stock_mean_rv['mean_realized_volatility'] > epsilon_vol)
+]
+
+# report filtering outcome
+n_original_stocks = df['stock_id'].nunique()
+n_filtered_stocks = filtered_stocks_info['stock_id'].nunique()
+print(f"Original number of stocks: {n_original_stocks}")
+print(f"Number of stocks after volatility filtering: {n_filtered_stocks}")
+
+if n_filtered_stocks == 0:
+    print("Error: No stocks remaining after filtering. Adjust VOLATILITY_IQR_MULTIPLIER or check data.")
+```
+
+### K-means Clustering
+
+```{python, eval=FALSE}
+stock_time_id_features_filtered = stock_time_id_features[
+    stock_time_id_features['stock_id'].isin(filtered_stocks_info['stock_id'])
+]
+
+# selected features for clustering
+cluster_feature_cols = [
+    'realized_volatility', 'realized_skewness', 'autocorrelation_log_returns', 
+    'tick_frequency', 'mean_micro_price', 'mean_spread1', 'mean_spread2', 
+    'mean_imbalance_size1', 'mean_book_pressure',
+    'mean_bid_size1', 'mean_ask_size1', 'mean_bid_size2', 'mean_ask_size2'
+]
+
+# aggregate features at stock level
+stock_meta_features_df = stock_time_id_features_filtered.groupby('stock_id')[cluster_feature_cols].mean()
+
+print("Meta-features for clustering (mean of time_id features per stock):")
+print(stock_meta_features_df.head())
+
+# clustering stocks based on meta-features
+scaler = StandardScaler()
+scaled_meta_features = scaler.fit_transform(stock_meta_features_df)
+
+print(f"\nPerforming K-means clustering with K={N_CLUSTERS}...")
+kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=RANDOM_STATE, n_init='auto')
+stock_meta_features_df['cluster'] = kmeans.fit_predict(scaled_meta_features)
+
+print("Clustering results (stock_id and assigned cluster):")
+print(stock_meta_features_df[['cluster']].head())
+```
+
+### Individual R² and QLIKE evaluation
+
+```{python, eval=FALSE}
+r_squared_feature_cols = [
+    'realized_volatility', 'mean_spread1', 'mean_imbalance_size1', 
+    'mean_book_pressure', 'mean_micro_price'
+]
+stock_scores_list = []
+stock_time_id_features_filtered = stock_time_id_features_filtered.sort_values(['stock_id', 'time_id'])
+
+for stock_id in filtered_stocks_info['stock_id']:
+    stock_data = stock_time_id_features_filtered[stock_time_id_features_filtered['stock_id'] == stock_id].copy()
+    
+    if len(stock_data) < MIN_PERIODS_FOR_MODEL:
+        print(f"Stock {stock_id}: Insufficient data ({len(stock_data)} periods) for R2/QLIKE, skipping.")
+        stock_scores_list.append({'stock_id': stock_id, 'r_squared': np.nan, 'qlike': np.nan})
+        continue
+
+    for col in r_squared_feature_cols:
+        stock_data[f'prev_{col}'] = stock_data[col].shift(1)
+    
+    stock_data = stock_data.dropna() 
+
+    if len(stock_data) < 2: 
+        print(f"Stock {stock_id}: Insufficient data after lagging for R2/QLIKE, skipping.")
+        stock_scores_list.append({'stock_id': stock_id, 'r_squared': np.nan, 'qlike': np.nan})
+        continue
+
+    y_true_r2_all = []
+    y_pred_r2_all = []
+    y_true_qlike_all = []
+    y_pred_qlike_all = []
+
+    start_prediction_idx = max(2, MIN_PERIODS_FOR_MODEL // 2)
+
+
+    for i in range(start_prediction_idx, len(stock_data)):
+        train_df = stock_data.iloc[:i]
+        current_period_data = stock_data.iloc[i]
+
+        X_train = train_df[[f'prev_{col}' for col in r_squared_feature_cols]]
+        y_train = train_df['realized_volatility']
+        
+        X_current = pd.DataFrame(current_period_data[[f'prev_{col}' for col in r_squared_feature_cols]]).T
+        y_current_true_r2 = current_period_data['realized_volatility']
+
+        if len(X_train) >= 2: 
+            try:
+                model = LinearRegression()
+                model.fit(X_train, y_train)
+                y_current_pred_r2 = model.predict(X_current)[0]
+                
+                y_true_r2_all.append(y_current_true_r2)
+                y_pred_r2_all.append(y_current_pred_r2)
+            except Exception:
+                pass
+
+        historical_rv_for_qlike = train_df['realized_volatility']
+        if not historical_rv_for_qlike.empty:
+            forecast_rv_qlike = historical_rv_for_qlike.mean()
+            y_current_true_qlike = current_period_data['realized_volatility']
+
+            y_true_qlike_all.append(y_current_true_qlike)
+            y_pred_qlike_all.append(forecast_rv_qlike)
+
+    r_squared_stock = np.nan
+    if len(y_true_r2_all) >= 2 and len(set(y_true_r2_all)) > 1: 
+        r_squared_stock = r2_score(y_true_r2_all, y_pred_r2_all)
+    
+    qlike_stock = np.nan
+    if y_true_qlike_all:
+        qlike_stock = qlike_loss(np.array(y_true_qlike_all), np.array(y_pred_qlike_all))
+
+    stock_scores_list.append({
+        'stock_id': stock_id,
+        'r_squared': r_squared_stock,
+        'qlike': qlike_stock
+    })
+    print(f"Stock {stock_id}: R^2 = {r_squared_stock:.4f}, QLIKE = {qlike_stock:.4f} (from {len(y_true_r2_all)} R2 points, {len(y_true_qlike_all)} QLIKE points)")
+```
+
+```{python, eval=FALSE}
+stock_scores_df = pd.DataFrame(stock_scores_list)
+stock_scores_df = pd.merge(stock_scores_df, stock_meta_features_df[['cluster']].reset_index(), on='stock_id', how='left')
+print("\nCalculated R-squared and QLIKE scores:")
+print(stock_scores_df.head())
+```
+
+```{python, eval=FALSE}
+# remove incomplete results
+stock_scores_df = stock_scores_df.dropna(subset=['r_squared', 'qlike'])
+
+if stock_scores_df.empty:
+    print("Error: No stocks remaining after calculating R-squared/QLIKE (all NaNs or empty). Check calculation steps or MIN_PERIODS_FOR_MODEL.")
+    exit()
+  
+# combine scores using weighted formula  
+stock_scores_df['combined_score'] = R2_WEIGHT * stock_scores_df['r_squared'] - \
+                                    QLIKE_WEIGHT * stock_scores_df['qlike']
+# rank and select top stocks
+top_stocks = stock_scores_df.sort_values(by='combined_score', ascending=False)
+
+print(f"\nTop 30 stocks based on combined score ({R2_WEIGHT}*R^2 - {QLIKE_WEIGHT}*QLIKE):")
+N_TOP_STOCKS = 30
+final_selection = top_stocks.head(N_TOP_STOCKS)
+print(final_selection)
+```
+
+### Saving Selected Stocks
+
+```{python, eval=FALSE}
+# For Reference only, choose from final_selection in practice. 
+selected_stock_ids = [1, 5, 7, 8, 22, 27, 32, 44, 50, 55, 
+                      59, 62, 63, 73, 75, 76, 78, 80, 81, 84, 
+                      85, 86, 89, 96, 97, 101, 102, 109, 115, 120]
+
+df = pd.read_parquet("Data/112Stocks.parquet")
+df = df[df["stock_id"].isin(selected_stock_ids)]
+df.to_parquet("Data/30Stocks.parquet")
+```
+
+### Feature Engineering
+
+```{python, eval=FALSE}
+# Only for top 30 stocks
+df = pd.read_parquet("Data/30stocks.parquet")
+
+def make_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    df['mid_price'] = (df['bid_price1'] + df['ask_price1']) / 2
+    df['spread']    = df['ask_price1'] - df['bid_price1']
+    
+    with np.errstate(divide='ignore', invalid='ignore'):
+        num  = df['bid_size1'] - df['ask_size1']
+        den  = df['bid_size1'] + df['ask_size1']
+        df['imbalance'] = np.where(den > 0, num / den, np.nan)
+
+        num2 = (df['bid_size1'] + df['bid_size2']) - (df['ask_size1'] + df['ask_size2'])
+        den2 = df[['bid_size1','bid_size2','ask_size1','ask_size2']].sum(axis=1)
+        df['book_pressure'] = np.where(den2 > 0, num2 / den2, np.nan)
+
+    df['normalized_spread'] = df['spread'] / df['mid_price'].replace(0, np.nan)
+    df['OBI_L2'] = np.where(den2 > 0, (df['bid_size1'] + df['bid_size2']) / den2, np.nan)
+
+    sizes = df[['bid_size1','bid_size2','ask_size1','ask_size2']].astype(float).values
+    total = sizes.sum(axis=1, keepdims=True)
+    p = np.divide(sizes, total, where=total != 0)
+    entropy = -np.nansum(np.where(p > 0, p * np.log(p), 0), axis=1)
+    df['LOB_entropy'] = entropy
+    df['LOB_entropy_normalized'] = entropy / np.log(4)
+
+    df['log_return'] = (
+        df.groupby('time_id')['mid_price']
+          .transform(lambda x: np.log(x / x.shift(1)))
+    )
+
+    df['realized_volatility'] = (
+        df.groupby('time_id')['log_return']
+        .transform(lambda x: np.sqrt(
+            ((x.shift(1) ** 2)
+                .rolling(30, min_periods=1)
+                .sum()
+            ).clip(lower=0)
+        ))
+    )
+
+    df['rv_future'] = (
+        df.groupby('time_id')['realized_volatility'].shift(-30)   
+    )
+
+    df['bipower_var'] = (
+        df.groupby('time_id')['log_return']
+          .transform(lambda x: x.abs().shift(1)
+                       .rolling(2, min_periods=1)
+                       .apply(lambda r: r[0] * r[1], raw=True)
+                       .rolling(30, min_periods=1)
+                       .mean())
+    )
+
+    df['wap'] = (
+        (df['bid_price1'] * df['ask_size1'] + df['ask_price1'] * df['bid_size1']) /
+        (df['bid_size1'] + df['ask_size1']).replace(0, np.nan)
+    )
+    
+    df['log_wap_return'] = (
+        df.groupby('time_id')['wap']
+          .transform(lambda x: np.log(x / x.shift(1)))
+    )
+
+    for col in ['imbalance', 'book_pressure', 'log_return']:
+        df[f'{col}_lag1'] = df.groupby('time_id')[col].shift(1)
+        df[f'{col}_lag2'] = df.groupby('time_id')[col].shift(2)
+
+    df['rolling_vol_30'] = (
+        df.groupby('time_id')['log_return']
+          .transform(lambda x: x.shift(1).rolling(30, min_periods=1).std())
+    )
+    df['rolling_imbalance_mean_30'] = (
+        df.groupby('time_id')['imbalance']
+          .transform(lambda x: x.shift(1).rolling(30, min_periods=1).mean())
+    )
+
+    df = df.dropna()   
+    df = df.replace([np.inf, -np.inf], np.nan)
+
+    theta = 2 * np.pi * df['seconds_in_bucket'] / 600 # period = 600
+    df['sec_sin'] = np.sin(theta)
+    df['sec_cos'] = np.cos(theta)
+
+    for c in ['bid_size1','ask_size1','bid_size2','ask_size2']:
+        df[c + '_log'] = np.log1p(df[c])
+        df.drop(columns=c, inplace=True)
+
+    return df
+  
+df = make_features(df)
+```
+
+### Type Conversion
+
+```{python, eval=FALSE}
+df = df.astype({col: 'float32' if df[col].dtype == 'float64' else 'int32' 
+                for col in df.columns 
+                if df[col].dtype in ['float64', 'int64']})
+```
+
+### Variance Thresholding
+
+```{python, eval=FALSE}
+X = df.drop(columns=['rv_future'])
+```
+
+```{python, eval=FALSE}
+selector = VarianceThreshold(threshold=0.0)
+X_reduced = selector.fit_transform(X)
+selected_columns = X.columns[selector.get_support()]
+X_reduced_df = pd.DataFrame(X_reduced, columns=selected_columns, index=X.index)
+```
+
+```{python, eval=FALSE}
+dfR = X_reduced_df.astype({col: 'float32' if X_reduced_df[col].dtype == 'float64' else 'int32' 
+                for col in X_reduced_df.columns 
+                if X_reduced_df[col].dtype in ['float64', 'int64']})
+```
+
+### Spearman Correlation
+
+```{python, eval=FALSE}
+corr = dfR.corr(method='spearman').abs()
+to_drop = {c for c in corr.columns for r in corr.columns
+if r != c and corr.loc[r, c] > .98 and corr.loc[r].sum() < corr.loc[c].sum()}
+to_drop
+```
+
+```{python, eval=FALSE}
+dfR = dfR.drop(columns=list(to_drop))
+
+dfR['rv_future'] = df['rv_future']
+
+dfR = dfR.sort_values(
+    ['stock_id', 'time_id', 'seconds_in_bucket'],
+    ascending=[True, True, True]
+).reset_index(drop=True)
+
+dfR.to_parquet("Data/FE30Stocks.parquet")
+```
+
+### Weighted Least Square
+
+```{python, eval=FALSE}
+def qlike_loss(actual, pred, eps=1e-12):
+    a = np.clip(actual, eps, None)     
+    f = np.clip(pred,   eps, None)
+    r = a / f
+    return np.mean(r - np.log(r) - 1.0) 
+```
+
+```{python, eval=FALSE}
+# Feature and target column names
+feature_cols = ['stock_id','mid_price', 'spread', 'imbalance',
+       'book_pressure', 'LOB_entropy', 'log_return', 'bipower_var',
+       'log_wap_return', 'imbalance_lag1', 'imbalance_lag2',
+       'book_pressure_lag1', 'book_pressure_lag2', 'log_return_lag1',
+       'log_return_lag2', 'rolling_vol_30', 'rolling_imbalance_mean_30',
+       'sec_sin', 'sec_cos', 'bid_size1_log', 'ask_size1_log', 'bid_size2_log',
+       'ask_size2_log']
+target_col = 'rv_future'
+```
+
+```{python, eval=FALSE}
+# Load data
+df = pd.read_parquet("DATA3888/Optiver-07/Data/FE30Stocks.parquet")
+```
+
+```{python, eval=FALSE}
+# Prepare features, target, and weights (inverse variance as heteroscedastic weights)
+X = df[feature_cols].astype('float32')
+y = df[target_col].astype('float32')
+w = 1.0 / (y.rolling(2000, min_periods=1).var().fillna(y.var()))
+```
+
+```{python, eval=FALSE}
+# Train-test split
+split_idx = int(len(df) * 0.8)        
+X_train, X_test = X.iloc[:split_idx],  X.iloc[split_idx:]
+y_train, y_test = y.iloc[:split_idx],  y.iloc[split_idx:]
+w_train, w_test = w.iloc[:split_idx],  w.iloc[split_idx:]
+```
+
+```{python, eval=FALSE}
+# Add intercept term
+X_train_c = sm.add_constant(X_train, has_constant='add')
+X_test_c  = sm.add_constant(X_test,  has_constant='add')
+
+# Weighted Least Squares regression
+model     = sm.WLS(y_train, X_train_c, weights=w_train)
+results   = model.fit()
+print(results.summary())
+```
+
+```{python, eval=FALSE}
+# Predict and evaluate
+y_pred = results.predict(X_test_c)
+r2     = r2_score(y_test, y_pred)
+qlike  = qlike_loss(y_test.values, y_pred)
+
+print(f"Out-of-sample R²   : {r2:0.4f}")
+print(f"Out-of-sample QLIKE: {qlike:0.6f}")
+```
+
+### Random Forest
+
+```{python, eval=FALSE}
+df = pd.read_parquet("DATA3888/Optiver-07/Data/FE30Stocks.parquet")
+
+feature_cols_mod = ['stock_id', 'mid_price', 'spread', 'imbalance',
+       'book_pressure', 'LOB_entropy', 'log_return', 'bipower_var',
+       'log_wap_return', 'imbalance_lag1', 'imbalance_lag2',
+       'book_pressure_lag1', 'book_pressure_lag2', 'log_return_lag1',
+       'log_return_lag2', 'rolling_vol_30', 'rolling_imbalance_mean_30',
+       'sec_sin', 'sec_cos', 'bid_size1_log', 'ask_size1_log', 'bid_size2_log',
+       'ask_size2_log']
+target_col = "rv_future"
+
+df['rv_future_log'] = np.log1p(df[target_col])
+target_col_mod   = 'rv_future_log'
+```
+
+```{python, eval=FALSE}
+unique_sessions = np.sort(df['time_id'].unique())
+split_idx       = int(len(unique_sessions) * 0.8)
+
+train_val_sessions = unique_sessions[:split_idx]
+test_sessions      = unique_sessions[split_idx:]
+
+train_val_df = df[df['time_id'].isin(train_val_sessions)].copy()
+test_df      = df[df['time_id'].isin(test_sessions)].copy()
+
+val_cut        = int(len(train_val_sessions) * 0.9)
+train_sessions = train_val_sessions[:val_cut]
+val_sessions   = train_val_sessions[val_cut:]
+```
+
+```{python, eval=FALSE}
+train_df = train_val_df[train_val_df['time_id'].isin(train_sessions)]
+val_df   = train_val_df[train_val_df['time_id'].isin(val_sessions)]
+
+X_train = train_df[feature_cols_mod].values
+y_train = train_df[target_col_mod].values.ravel()
+
+X_val   = val_df[feature_cols_mod].values
+y_val   = val_df[target_col_mod].values.ravel()
+
+X_test  = test_df[feature_cols_mod].values
+y_test  = test_df[target_col_mod].values.ravel()
+```
+
+```{python, eval=FALSE}
+rf = RandomForestRegressor(
+    n_estimators=500,
+    max_depth=None,
+    max_features='sqrt',
+    min_samples_leaf=3,
+    bootstrap=True,
+    n_jobs=-1,
+    random_state=42,
+    verbose=1
+)
+rf.fit(X_train, y_train)
+```
+
+```{python, eval=FALSE}
+val_pred  = rf.predict(X_val)
+val_rmse  = root_mean_squared_error(y_val, val_pred)
+print(f"Validation RMSE: {val_rmse:.6f}")
+```
+
+```{python, eval=FALSE}
+pred = rf.predict(X_test)
+rmse = root_mean_squared_error(y_test, pred)
+print(f"Out-of-sample RMSE = {rmse:.6f}")
+```
+
+```{python, eval=FALSE}
+y_true_raw = y_test                  
+y_pred_raw = rf.predict(X_test)     
+
+rmse = root_mean_squared_error(y_true_raw, y_pred_raw)
+r2 = r2_score(y_true_raw, y_pred_raw)
+
+def qlike_safe(actual, forecast, eps=1e-8):
+    a = np.clip(actual, eps, None)
+    f = np.clip(forecast, eps, None)
+    r = a / f
+    return np.mean(r - np.log(r) - 1.0)
+
+ql = qlike_safe(y_true_raw, y_pred_raw)
+
+print(f"Out‑of‑sample RMSE: {rmse:.6f}")
+print(f"R² score         : {r2:.6f}")
+print(f"QLIKE            : {ql:.6f}")
+```
+
+### LSTM
+
+```{python, eval=FALSE}
+random.seed(3888)
+np.random.seed(3888)
+tf.random.set_seed(3888)
+```
+
+```{python, eval=FALSE}
+df = pd.read_parquet("DATA3888/Optiver-07/Data/FE30Stocks.parquet")
+
+feature_cols = ['mid_price', 'spread',
+       'imbalance', 'book_pressure', 'LOB_entropy', 'log_return',
+       'bipower_var', 'log_wap_return', 'imbalance_lag1', 'imbalance_lag2',
+       'book_pressure_lag1', 'book_pressure_lag2', 'log_return_lag1',
+       'log_return_lag2', 'rolling_vol_30', 'rolling_imbalance_mean_30',
+       'sec_sin', 'sec_cos', 'bid_size1_log', 'ask_size1_log', 'bid_size2_log',
+       'ask_size2_log']
+target_col = "rv_future"
+
+df['rv_future_log'] = np.log1p(df['rv_future'])
+feature_cols_mod = [c for c in feature_cols if c!='rv_future'] 
+target_col_mod     = 'rv_future_log'
+```
+
+```{python, eval=FALSE}
+unique_sessions = df["time_id"].sort_values().unique()
+split_idx       = int(len(unique_sessions) * 0.8)          
+train_sessions  = unique_sessions[:split_idx]
+test_sessions   = unique_sessions[split_idx:]
+```
+
+```{python, eval=FALSE}
+train_df = df[df["time_id"].isin(train_sessions)].copy()
+test_df  = df[df["time_id"].isin(test_sessions)].copy()
+```
+
+```{python, eval=FALSE}
+x_scaler = MinMaxScaler().fit(train_df[feature_cols_mod])
+y_scaler = MinMaxScaler(feature_range=(0,1)).fit(train_df[[target_col_mod]])
+
+train_df[feature_cols_mod] = x_scaler.transform(train_df[feature_cols_mod])
+test_df[feature_cols_mod]  = x_scaler.transform(test_df[feature_cols_mod])
+train_df[target_col_mod]   = y_scaler.transform(train_df[[target_col_mod]])
+test_df[target_col_mod]    = y_scaler.transform(test_df[[target_col_mod]])
+```
+
+```{python, eval=FALSE}
+def build_sequences(df_part: pd.DataFrame, feature_cols, target_col, seq_len):
+    X, y = [], []
+    for _, session in df_part.groupby("time_id"):
+        data   = session[feature_cols].values
+        target = session[target_col].values
+        for i in range(len(session) - seq_len):
+            X.append(data[i : i + seq_len])
+            y.append(target[i + seq_len])
+    return np.asarray(X), np.asarray(y)
+
+X_train, y_train = build_sequences(train_df, feature_cols, target_col, SEQ_LEN)
+X_test,  y_test  = build_sequences(test_df,  feature_cols, target_col, SEQ_LEN)
+```
+
+```{python, eval=FALSE}
+val_split_idx = int(len(train_sessions) * 0.9)
+val_sessions  = train_sessions[val_split_idx:]
+train_sessions= train_sessions[:val_split_idx]
+
+val_df = train_df[train_df["time_id"].isin(val_sessions)]
+train_df = train_df[train_df["time_id"].isin(train_sessions)]
+
+X_train, y_train = build_sequences(train_df, feature_cols_mod, 'rv_future_log', SEQ_LEN)
+X_val,   y_val   = build_sequences(val_df,   feature_cols_mod, 'rv_future_log', SEQ_LEN)
+X_test,  y_test  = build_sequences(test_df,  feature_cols_mod, 'rv_future_log', SEQ_LEN)
+```
+
+```{python, eval=FALSE}
+def build_lstm_model(seq_len, num_features):
+    model = Sequential()
+    model.add(LSTM(64, return_sequences=True, input_shape=(seq_len, num_features)))
+    model.add(Dropout(0.2))
+    model.add(LSTM(32))
+    model.add(Dropout(0.2))
+    model.add(Dense(16, activation='relu'))
+    model.add(Dense(1))  
+    return model
+
+NUM_FEATURES = X_train.shape[2]
+model = build_lstm_model(SEQ_LEN, NUM_FEATURES)
+
+callbacks = [
+    EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+]
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
+    loss='mse',
+    metrics=['mae', 'mse']
+)
+model.summary()
+```
+
+```{python, eval=FALSE}
+history = model.fit(
+    X_train, y_train,
+    validation_data=(X_val, y_val),
+    epochs=50, 
+    batch_size=128,
+    callbacks=callbacks,
+    verbose=1
+)
+```
+
+```{python, eval=FALSE}
+pred_scaled = model.predict(X_test, verbose=1).flatten()
+actual_scaled = y_test.flatten()
+predictions = y_scaler.inverse_transform(pred_scaled.reshape(-1, 1)).flatten()
+actuals     = y_scaler.inverse_transform(actual_scaled.reshape(-1, 1)).flatten()
+```
+
+```{python, eval=FALSE}
+ql = qlike_loss(actuals, predictions)
+mse   = np.mean((predictions - actuals) ** 2)
+rmse  = np.sqrt(mse)
+r2 = r2_score(actuals, predictions)
+print(f"Test RMSE (volatility): {rmse:.9f}")
+print(f"R² score (σ prediction): {r2:.6f}")
+print("QLIKE:", ql)
+```
+
+### Transformer
+
+```{python, eval=FALSE}
+df = pd.read_parquet("DATA3888/Optiver-07/Data/FE30Stocks.parquet")
+
+feature_cols = ['mid_price', 'spread',
+       'imbalance', 'book_pressure', 'LOB_entropy', 'log_return',
+       'bipower_var', 'log_wap_return', 'imbalance_lag1', 'imbalance_lag2',
+       'book_pressure_lag1', 'book_pressure_lag2', 'log_return_lag1',
+       'log_return_lag2', 'rolling_vol_30', 'rolling_imbalance_mean_30',
+       'sec_sin', 'sec_cos', 'bid_size1_log', 'ask_size1_log', 'bid_size2_log',
+       'ask_size2_log']
+target_col = "rv_future"
+
+df['rv_future_log'] = np.log1p(df['rv_future'])
+feature_cols_mod = [c for c in feature_cols if c!='rv_future'] 
+target_col_mod     = 'rv_future_log'
+```
+
+```{python, eval=FALSE}
+unique_sessions = df["time_id"].sort_values().unique()
+split_idx       = int(len(unique_sessions) * 0.8)          
+train_sessions  = unique_sessions[:split_idx]
+test_sessions   = unique_sessions[split_idx:]
+```
+
+```{python, eval=FALSE}
+train_df = df[df["time_id"].isin(train_sessions)].copy()
+test_df  = df[df["time_id"].isin(test_sessions)].copy()
+```
+
+```{python, eval=FALSE}
+x_scaler = MinMaxScaler().fit(train_df[feature_cols_mod])
+y_scaler = MinMaxScaler(feature_range=(0,1)).fit(train_df[[target_col_mod]])
+
+train_df[feature_cols_mod] = x_scaler.transform(train_df[feature_cols_mod])
+test_df[feature_cols_mod]  = x_scaler.transform(test_df[feature_cols_mod])
+train_df[target_col_mod]   = y_scaler.transform(train_df[[target_col_mod]])
+test_df[target_col_mod]    = y_scaler.transform(test_df[[target_col_mod]])
+```
+
+```{python, eval=FALSE}
+X_train, y_train = build_sequences(train_df, feature_cols, target_col, SEQ_LEN)
+X_test,  y_test  = build_sequences(test_df,  feature_cols, target_col, SEQ_LEN)
+```
+
+```{python, eval=FALSE}
+def build_transformer_model(seq_len, num_features, d_model=64, num_heads=4, num_layers=2):
+    inputs = layers.Input(shape=(seq_len, num_features))
+    x = layers.Dense(d_model)(inputs)
+    for _ in range(num_layers):
+        attn_output = layers.MultiHeadAttention(
+            num_heads=num_heads, key_dim=d_model)(x, x)
+        x = layers.Add()([x, attn_output])
+        x = layers.LayerNormalization(epsilon=1e-6)(x)
+        ffn_out = layers.Dense(d_model * 4, activation="relu")(x)
+        ffn_out = layers.Dense(d_model)(ffn_out)
+        x       = layers.Add()([x, ffn_out])
+        x       = layers.LayerNormalization(epsilon=1e-6)(x)
+    x = layers.GlobalAveragePooling1D()(x)  
+    output = layers.Dense(1)(x)
+    return models.Model(inputs, output)
+
+model = build_transformer_model(SEQ_LEN, len(feature_cols))
+model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="mse")
+model.summary()
+```
+
+```{python, eval=FALSE}
+val_split_idx = int(len(train_sessions) * 0.9)
+val_sessions  = train_sessions[val_split_idx:]
+train_sessions= train_sessions[:val_split_idx]
+
+val_df = train_df[train_df["time_id"].isin(val_sessions)]
+train_df = train_df[train_df["time_id"].isin(train_sessions)]
+
+X_train, y_train = build_sequences(train_df, feature_cols_mod, 'rv_future_log', SEQ_LEN)
+X_val,   y_val   = build_sequences(val_df,   feature_cols_mod, 'rv_future_log', SEQ_LEN)
+X_test,  y_test  = build_sequences(test_df,  feature_cols_mod, 'rv_future_log', SEQ_LEN)
+```
+
+```{python, eval=FALSE}
+num_feats = X_train.shape[2]  
+model = build_transformer_model(SEQ_LEN, num_feats)
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(1e-3),
+    loss="mse"
+)
+
+history = model.fit(
+    X_train, y_train,
+    validation_data=(X_val, y_val),
+    epochs=50,
+    batch_size=32,
+    callbacks=[callbacks.EarlyStopping(
+        monitor="val_loss", patience=15, restore_best_weights=True
+    )],
+    verbose=1,
+)
+```
+
+```{python, eval=FALSE}
+pred_scaled = model.predict(X_test, verbose=1).flatten()
+actual_scaled = y_test.flatten()
+predictions = y_scaler.inverse_transform(pred_scaled.reshape(-1, 1)).flatten()
+actuals     = y_scaler.inverse_transform(actual_scaled.reshape(-1, 1)).flatten()
+mse   = np.mean((predictions - actuals) ** 2)
+rmse  = np.sqrt(mse)
+print(f"Test RMSE (volatility): {rmse:.9f}")
+```
+
+```{python, eval=FALSE}
+r2 = r2_score(actuals, predictions)
+print(f"R² score (σ prediction) = {r2:.6f}")
+```
+
+```{python, eval=FALSE}
+def qlike_safe(actual, forecast, eps=1e-12):
+    a = np.clip(actual,   eps, None)
+    f = np.clip(forecast, eps, None)
+    r = a / f
+    return np.mean(r - np.log(r) - 1.0)
+
+ql = qlike_safe(actuals, predictions)
+print("QLIKE:", ql)
+```
+
+## Plots
+
+```{r include-corr-plot, echo=FALSE, out.width='100%', fig.cap="Correlation Plot"}
+knitr::include_graphics("Corr-1.png")
+```
+
+```{r include-hist-plot, echo=FALSE, out.width='100%', fig.cap="Data Distribution"}
+knitr::include_graphics("FinalDF-Hist.png")
+```
