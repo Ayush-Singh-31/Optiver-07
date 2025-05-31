@@ -18,238 +18,1151 @@ format:
 execute:
   echo: true
   tidy: true
+editor: 
+  markdown: 
+    wrap: 72
 ---
 
 # Executive Summary
 
-# Research Question
+## Research Question
 
-In this project, our objective is to identify which predictive model performs best in forecasting short-term volatility using high-frequency financial markets, using level-2 Limit Order Book (LOB) data. Accurate volatility forecasting is essential for market makers and trading firms like Optiver, where it directly impacts pricing, hedging, and real-time inventory management.
+Short-term volatility forecasting is critical for high-frequency trading, risk management, and market-making. This study investigates whether advanced deep learning architectures can enhance predictive accuracy using ultra-high-frequency Level-2 Limit Order Book (LOB) data. Specifically, we evaluate whether a Transformer-based model can outperform traditional Long Short-Term Memory (LSTM) networks when both models are trained on identically preprocessed datasets with equivalent engineered features. The goal is to determine if the Transformer's attention mechanism offers a material advantage in capturing complex microstructural dynamics inherent in LOB data.
 
-We define volatility as how much an asset’s price moves over time, with our target variable predicted as the log-transformed realised volatility 30 timesteps into the future.
+### Hypothesis
 
-With four models being narrowed down in our research, we aim to observe whether deep learning models, specifically Transformers, perform better than LSTM-based models given the same data, feature engineering, and data.
+#### Null Hypothesis (H₀)
 
-To evaluate model performance, we used two metrics: R-squared to capture the proportion of variance explained, and QLIKE loss, a function often used for volatility forecasts, penalising incorrect magnitude predictions. This allows us to assess both overall accuracy and forecasting reliability. Beyond accuracy, we are also considering the trade-offs in robustness, interpretability and practical relevance, to ensure usability and deployability in fast-moving trading environments.
+Given equivalent data quality, feature engineering, and preprocessing conditions, a Transformer-based model does not outperform LSTM networks in short-term volatility forecasting on Level-2 Limit Order Book (LOB) data.
 
+#### Alternative Hypothesis (H₁)
 
-# EDA
+Given equivalent data quality, feature engineering, and preprocessing conditions, a Transformer-based model outperforms LSTM networks in short-term volatility forecasting on Level-2 Limit Order Book (LOB) data.
 
-The Exploratory Data Analysis (EDA) stage involves data quality assessment and feature engineering, which were key to processing the dataset for time-series modelling. High frequency financial data may present challenges such as irregular sampling, missing observations, and noise that must be first addressed.
+## Key Findings
 
-Considering the consecutive nature of the time series data, it is essential to keep missing data to a minimum and dealing with it systematically. Time IDs with at least 70% missing seconds are taken out of the used dataset. Bar charts were also used to visualise the distribution of missing percentages across time buckets, missing seconds in bucket per time ID, and missing seconds across time buckets. 
+Our analysis shows that the Transformer model achieves superior performance in short-term volatility forecasting, consistently outperforming over 15 candidate models. In general, it attains an **out-of-sample R² of 0.62** and **QLIKE loss of 0.14**, capturing 62% of realized volatility variation—substantially higher than the WLS and Random Forest baselines, and measurably better than the LSTM. In favorable market regimes, performance improves to **out-of-sample R² of 0.78** and **QLIKE loss of 0.05**. The Transformer's attention mechanism effectively identifies temporally localized predictive structures in high-frequency order flow, yielding robust and highly accurate forecasts.
 
-Little’s Missing Completely At Random (MCAR) Test was applied to check for patterns in missing data, and consequently whether imputation was appropriate. The result showed a high p-value of 1.00, indicating that the missing data is indeed MCAR and not dependent on other variables. We followed up by imputing low missing time intervals along with removing high missing time intervals to maintain the integrity of the dataset and utilising all available data that is reliable. 
-
-
-## Feature Engineering
-
-During the pre-cleaning stage, corrupt or out-of-range LOB records are removed. This includes (1) non-positive prices and sizes, (2) crossed quotes (ask < bid) at both levels, (3) seconds_in_bucket outside of the expected range, and (4) duplicate or non-monotonic timestamps within each time_id. For the train-test split, 70-30 split was used, non-randomised to keep the consecutive nature of the data. After aggregating the features, the dataset is winsorised to reduce the impact of outliers. This scaling method is done by replacing the extreme values with less extreme values from the dataset.
-
-The feature selection process uses two criteria: Pearson Correlation and Mutual Information. Pearson correlation and mutual information are calculated between each feature and the target variable, with Pearson correlation measuring linear relationships between the variables while mutual information captures the non-linear aspects. The features are then selected if it meets either of two criteria: it has absolute Pearson correlation of higher than or equal to 0.10, or mutual information score higher or equal to 75th percentile. 
-
-
-## Testing
-
-In establishing a baseline, the naive prediction was made using the current realised volatility. It calculates the Root Mean Squared Error (RMSE) of this baseline, which was 0.92. This represents how well you would do by simply assuming tomorrow’s volatility is the same as today’s.
-
-There were several regression models trained and evaluated in the process. Ridge Regression had a test RMSE of 0.56, while Random Forest had a test RMSE of 0.55, and LightGBM and Histogram-based Gradient Boosting both had test RMSEs of 0.50 each. The decreasing RMSE values show increasingly better performance. The gradient boosting models (LightGBM and Histogram GBM) both had the best performance, reducing the prediction error by approximately 46% from the naive approach. This suggests that the features selected contain valuable predictive information about future volatility, and that tree-based ensembles performed better at capturing complex relationships in this data than linear models like Ridge Regression. 
-
-
-# Model Selection
-
-After developing over 15 models, we strategically selected the following four models for detailed analysis including two top-performing models—Transformer and LSTM, along with a baseline model demonstrating solid foundational performance – Weighted Least Squares (WLS), and a high-performing model within its complexity class – Random Forest, which consistently outperformed other models of comparable complexity.
-
-Our first implementation was a lightweight Transformer encoder for volatility forecasting. This involved projecting each 30 step LOB sequence into a 64-dimensional embedding, then stacking two encoder blocks—each with four-head self-attention with a key/query dimension of 64, a 4× feed-forward expansion to 256 units, and both residual and layer-norm connections. After global average pooling, a single linear output head produces the forecast, totaling an estimate of 100, 000 parameters. Inputs and log-transformed targets were MinMax-scaled. Training used the Adam optimiser with a learning rate of 1 × 10⁻³, using Mean Squared Error (MSE) loss on a strict 80/10/10 chronological split, a batch size of 32, and early stopping with a patience of 15 over 50 epochs. The model required approximately 500 GPU-hours to train and delivered strong out-of-sample RMSE, R², and QLIKE performance.
-
-For our next model, we built a two-layer stacked LSTM.  with 64 units returning all 30 steps (~25 088 parameters), followed by 20 % dropout, then a 32-unit LSTM (~12 416 parameters) with another 20 % dropout—topped by a compact feed-forward head (16-node dense + single linear output, ~545 parameters), for ~38 k trainable weights. Inputs were min-max–scaled 30-step sequences of engineered LOB features and the target was log-transformed volatility. We enforced a strict chronological split (80 % train, 10 % val, 10 % test) to eliminate look-ahead bias, trained with Adam at a 1 × 10⁻⁴ learning rate, 128-sample batches, and early stopping (patience = 5) for up to 50 epochs. Out-of-sample RMSE, R², and QLIKE metrics demonstrate strong sequence learning and stable volatility forecasts.
-
-For the next model, a two-layer stacked LSTM was built. The first layer consisted of 64 units returning all 30 steps, comprising approximately 25,088 parameters, followed by 20% dropout. This was then followed by a 32-unit LSTM layer with around 12,416 parameters and another 20% dropout. This architecture was topped by a compact feed-forward head, consisting of a 16-node dense layer and a single linear output, contributing approximately 545 parameters, for a total of approximately 38,000 trainable weights. Inputs were MinMax-scaled 30-step sequences of engineered LOB features, and the target was log-transformed volatility. A strict chronological split of 80% for training, 10% for validation, and 10% for testing was enforced to eliminate look-ahead bias. Training was conducted using the Adam optimizer with a 1×10−4 learning rate, 128-sample batches, and early stopping with a patience of 5 for up to 50 epochs. Out-of-sample RMSE, R², and QLIKE metrics demonstrated strong sequence learning and stable volatility forecasts.
-
-Next, we used an ensemble of 500 trees grown to full depth, sampling the square root of features at each split and enforcing a minimum of three samples per leaf. Bootstrap aggregation was used to decorrelate trees and reduce variance. The volatility target was log-transformed to stabilize its heavy-tailed distribution, and we partitioned the data chronologically—80% for training, 10% for validation, 10% for testing—to eliminate look-ahead bias. Training ran in parallel across all CPU cores for efficiency, and we monitored progress in real time. Out-of-sample performance was measured with root-mean-square error and QLIKE loss (with clipping), demonstrating the model’s ability to capture complex nonlinear interactions in order-book dynamics.
-
-Finally, we implemented a heteroskedasticity-aware WLS model in statsmodels to forecast 30-tick-ahead realized volatility. Observation weights were set as the inverse of a long-window rolling variance to counter time-varying noise. Using a chronological 80/20 train-test split across all 30 stocks, the model delivers a strong baseline out-of-sample R² and QLIKE loss.
-
-
-# Model Evaluation
-
-## Metrics Used
-
-To evaluate model performance comprehensively, we used three complementary metrics:
-
-* **R-squared (R²)**: This measures how much of the variance in the target variable is explained by the model. A higher R² means the model's predictions align more closely with actual volatility, giving a good sense of overall fit.
-
-* **QLIKE (Quasi-Likelihood) Loss**: Tailored for volatility forecasting, QLIKE penalises underestimates more heavily than overestimates. This is especially important in financial risk settings, where underpredicting volatility can lead to poor hedging or mispricing.
-
-* **Mean Squared Error (MSE)**: MSE calculates the average squared difference between predictions and actual values. It’s sensitive to large errors, making it a good measure of overall prediction accuracy.
-
-Together, these metrics offer a balanced view:
-
-* R² captures general trend fit,
-* QLIKE evaluates calibration during volatility spikes,
-* MSE reflects how the model handles large deviations.
-
-This trio allows us to assess both statistical performance and practical utility in real-world forecasting.
-
-## Fair Comparison
-
-To keep model comparisons fair, we used the same feature engineering pipeline (make_features) and preprocessing (including scaling) across all models. Input features were kept consistent, and target labels were log-transformed in the same way where applicable. All models were trained and tested on the same temporal splits of the data, using time_id as a session boundary. This session-based splitting preserves time-series structure and prevents leakage, allowing us to compare models under the exact same conditions. Final metrics were computed strictly on held-out test sessions, untouched during training and validation, ensuring that evaluation results reflect true generalisation performance rather than overfitting or tuning artefacts.
-
-
-# Key Findings
-
-## Bar Plots of Mean MSE, QLIKE, and R² by Model
-
-```{r include-model-plot, echo=FALSE, out.width='100%', fig.cap="Bar plots of Mean MSE, QLIKE, and R² by Model"}
+```{r include-model-plot, echo=FALSE, out.width='100%', fig.cap=""}
 knitr::include_graphics("model_comparison.png")
 ```
 
-### Transformer: Top Performance, Limited Transparency
+## Relevance
 
-The Transformer stood out across all metrics:
+The demonstrated predictive accuracy of the Transformer model has direct implications for high-frequency trading, risk management, and option pricing. High-quality real-time volatility estimates support tighter bid-ask spreads, more efficient hedging, and improved capital deployment under microsecond constraints. By capturing core properties of stochastic volatility—namely clustering, persistence, and asymmetry—the Transformer enables materially better real-time decision-making in trading and portfolio optimization contexts.
 
-* Lowest MSE and QLIKE, indicating strong accuracy and reliability under volatile conditions.
-* Highest R², showing excellent fit to actual trends.
+# Volatility Prediciton
 
-Its self-attention mechanism enables the model to capture intricate temporal and nonlinear relationships in the limit order book (LOB). However, the downside is reduced interpretability, which can be a drawback in regulated or real-time settings.
+Volatility is the degree to which the return of an asset deviates from its expected value over a given time horizon. Formally if $r_t$ denotes the (logarithmic) return at time $t$ and $\mu = \mathbb{E}[r_t]$ is its mean, then the (unconditional) volatility $\sigma$ can be defined as the standard deviation of $r_t$:
 
-### LSTM: Stable and Sequentially Aware
+$$
+\sigma \;=\;\sqrt{\mathbb{E}\bigl[(r_t - \mu)^2\bigr]}\,
+$$
 
-LSTM followed closely behind, with:
+In empirical, high‐frequency settings, one often works with realized volatility over a discrete interval (e.g., within one trading day or a fixed 10‐minute window). If $\{r_{t,i}\}_{i=1}^N$ are the equally‐spaced intraday returns within that interval, then the realized volatility is given by:
 
-* Slightly higher MSE than the Transformer,
-* Comparable QLIKE and R².
+$$
+\sigma_{\mathrm{realized}} = \sqrt{\sum_{i=1}^N r_{t,i}^2}
+$$
 
-This indicates that LSTM, while simpler, still models sequential LOB dynamics effectively. It’s a strong candidate when computational resources are limited or model explainability is a concern.
+which converges, under increasingly fine sampling, to the integrated variance of the underlying continuous‐time price process.
 
-### Random Forest: Reliable Static Baseline
+## Loading Data
 
-Random Forest performed well for a non-sequential model:
+The dataset consists of ultra-high-frequency Level-2 limit order book snapshots recorded at 1-second resolution across 600-second intervals. Each row corresponds to a fixed-time observation of a single stock and includes:
 
-* Outperformed WLS across all metrics,
-* Achieved decent QLIKE and R² scores.
+- **Price features:** Best bid and ask prices at levels 1 and 2.
+- **Volume features:** Corresponding sizes at these levels.
+- **Time identifiers:** time_id and seconds_in_bucket.
+- **Stock identifier:** stock_id uniquely indexing each equity
 
-Its main limitation is the inability to directly model temporal dependencies. However, with engineered time-lagged features, it offers good predictive power and strong explainability via feature importance—useful for real-time systems requiring quick insights.
+We load the data from all *112 individual CSV files*, each indexed by ***time_id*** and *seconds_in_bucket*. The data is scanned lazily using **Polars** with strict schema enforcement to ensure memory efficiency. Files are then consolidated and written as a compressed Parquet object for downstream processing.
 
-### WLS: Transparent but Weak
+## Filtering
 
-WLS lagged behind:
+Now we aim to *predict, rank,* and *cluster* stocks based on the predictability of their short-term (10-minute) volatility. First, raw LOB snapshots are transformed into numerical indicators capturing micro-structure signals. These are then aggregated into 10-minute interval statistics—such as *realized volatility*, *skewness*, *autocorrelation*, and *averaged book-state features*. These interval-level aggregates distill the high-frequency, second-by-second dynamics into a concise set of summary measures that capture both the magnitude of price fluctuations and the shape of the order book over each 10-minute period.  
 
-* Lowest R² and highest QLIKE,
-* Moderate MSE but poor calibration for volatility.
+For each stock, we compute a $13$-dimensional vector by averaging these statistics across all intervals. Then using **K-Means clustering**, we group stocks with similar micro-structure volatility profiles. By standardizing each dimension to unit variance before clustering, we ensure that no single feature dominates the grouping. This approach addresses the key stocks that cluster into distinct liquidity-volatility regimes?
 
-Still, its simplicity and transparency make it a valuable baseline for benchmarking and for interpreting how features relate to outcomes.
+### Snapshot Features
 
-## Summary Table
+At each second $t$ within a 10-minute block, we observe:
 
-```{r, echo=FALSE}
-# Example summary table (replace with actual values or DT::datatable)
-summary_df <- data.frame(
-  Model = c("Transformer", "LSTM", "Random Forest", "WLS"),
-  Strengths = c("Best accuracy; learns complex temporal features",
-                "Strong sequence modeling; stable performance",
-                "Moderate accuracy; interpretable with feature importances",
-                "Transparent; fast; strong baseline"),
-  Weaknesses = c("High computational cost, low interpretability",
-                 "Less accurate than Transformer; harder to interpret",
-                 "No inherent temporal modeling",
-                 "Poor fit and calibration in volatile conditions")
-)
-knitr::kable(summary_df, caption = "Comparison of Strengths and Weaknesses Across Models")
-```
+- Best bid/ask prices: $P_{1,t}^{(b)}$ and $P_{1,t}^{(a)}$.
+- 2nd‐level bid/ask prices: $P_{2,t}^{(b)}$ and $P_{2,t}^{(a)}$.
+- Corresponding sizes (volumes) at each level: $V_{1,t}^{(b)}$, $V_{1,t}^{(a)}$, $V_{2,t}^{(b)}$, and $V_{2,t}^{(a)}$.
+
+Using these existing features we create the following snapshot features:  
+
+- **Microprice** ($m_t$)
+
+$$
+  m_t = \frac{P_{1,t}^{(b)} \cdot V_{1,t}^{(a)} + P_{1,t}^{(a)} \cdot V_{1,t}^{(b)}}{V_{1,t}^{(b)} + V_{1,t}^{(a)} + \varepsilon}
+$$
+
+Here $\varepsilon$ is a small constant used to avoid division by 0. It is set to $10^{-12}$. Unlike the simple mid‐price the microprice tilts toward the side with greater resting depth, capturing which side (bid vs. ask) is likelier to execute next. If $V_{1,t}^{(b)} + V_{1,t}^{(a)} = 0$, we fallback to the mid‐price. The microprice thus serves as a continuous proxy for the “fair” execution price, reflecting order book imbalance at the best level.
+
+- **Spreads** ($\Delta_{t}^{(1)}$, $\Delta_{t}^{(2)}$)
+
+$$
+  \Delta_{t}^{(1)} = P_{1,t}^{(a)} - P_{1,t}^{(b)}
+$$
+
+$$
+  \Delta_{t}^{(2)} = P_{2,t}^{(a)} - P_{2,t}^{(b)}
+$$
+
+Spreads measure instantaneous liquidity. Empirically, wider spreads often precede higher short‐term volatility because trades occur at more *expensive* prices when liquidity is thin. By including both *level-1* and *level-2* spreads, we capture not only top‐of‐book tightness but also the depth available just beyond it, as a narrow *level-1* spread with a wide *level-2* spread indicates a thin liquidity buffer outside the best quotes.
+
+- **Imbalance** ($I_{1,t}$)
+
+$$
+  I_{1,t} = \frac{V^{(b)}_{1,t} - V^{(a)}_{1,t}}{V^{(b)}_{1,t} + V^{(a)}_{1,t} + \varepsilon}
+$$
+
+This imbalance at top‐of‐book often signals short‐term directional pressure. A positive value indicates *bid-side dominance* (upward pressure) while a negative value indicates *sell-side dominance* (downward pressure). In practice, extreme imbalance values (e.g., $|I_{1,t}| > 0.8$) frequently foreshadow rapid price moves or liquidity shifts that can translate into increased volatility.
+
+- **Book Pressure** ($B_t$)
+
+$$
+B_t = \frac{V^{(b)}_{1,t} + V^{(b)}_{2,t}}{V^{(b)}_{1,t} + V^{(b)}_{2,t} + V^{(a)}_{1,t} + V^{(a)}_{2,t} + \varepsilon}
+$$
+
+This measures the fraction of total *Level-1+2* depth on the bid side (if $B_t>0.5$, book is bid‐heavy). When the book is heavily skewed toward one side across the top two levels, it may temporarily cap or accelerate price changes. As with imbalance, we fallback to a neutral book pressure of $0.5$ if all volumes are zero (using $\varepsilon$).
+
+- **Mean Snapshot Features** ($\overline{x}_{\tau}$)
+
+For each snapshot feauture we also calculate:
+
+$$
+  \overline{x}_{\tau} 
+  = \frac{1}{|\mathcal{T}_\tau|} \sum_{t \in \mathcal{T}_\tau} x_t
+$$
+
+where $\mathcal{T}_\tau$ is the set of valid seconds in interval $\tau$. Averaging instantaneous features over the entire 10-minute block yields measures of the prevailing book state. These means form core components of each stock’s 13-dimensional vector
+
+In addition to the snapshot features already defined, one could extend this set—at the cost of additional dimensions—by including second-level microprice, weighted imbalance across levels 1 and 2, or higher moment measures of the instantaneous book state. However, by limiting ourselves to these primary quantities, we retain interpretability and avoid overfitting in clustering.
+
+### Aggregate Features
+
+Partition trading time into non-overlapping 10-minute intervals $\tau$. Within each $\tau$, let $\mathcal{T}_\tau$ be the set of valid seconds. We compute:
+
+- **Microprice log‐return** ($r_t$)
+
+$$
+  r_t = \ln{m_t} - \ln{m_{t-1}} = \ln(m_t/m_{t-1})
+$$
+
+These second-by-second log-returns of the microprice capture the *instantaneous price changes* that reflect both midpoint movements and order book tilt.
+
+- **Realized Volatility** ($\mathrm{RV}_{\tau}$)
+
+$$
+  \mathrm{RV}_{\tau} 
+  = \sqrt{\sum_{t \in \mathcal{T}_\tau} \bigl[\ln(m_t) - \ln(m_{t-1})\bigr]^2}
+$$
+
+$\mathrm{RV}_{\tau}$ computed from high‐frequency returns converges, in probability, to the true integrated variance of the underlying continuous price process. In practice, we drop any $r_t=\pm \infty$ (which can occur if $m_{t-1}$ or $m_t$ is zero due to book anomalies) and omit *NaNs*. If fewer than two valid log-returns exist (e.g., due to missing snapshots), we set $\mathrm{RV}_{\tau} = 0$ for that interval.
+
+- **Realized Skewness** ($\kappa_{\tau}$)
+
+$$
+  \kappa_{\tau} 
+  = \frac{1}{|\mathcal{T}_\tau|} \sum_{t \in \mathcal{T}_\tau} \left(\frac{\ln(m_t/m_{t-1}) - {\frac{1}{|\mathcal{T}_\tau|} \sum_{t \in \mathcal{T}_\tau} \ln(m_t/m_{t-1})}}{\sqrt{\frac{1}{|\mathcal{T}_\tau| - 1} \sum_{t \in \mathcal{T}_\tau} (\ln(m_t/m_{t-1}) - \bar r)^2}}\right)^3
+$$
+
+Skewness indicates whether returns in window $\tau$ have a heavy tail on one side—informative for jumps or directional bias. For instance, a significantly negative $\kappa_{\tau}$ suggests a propensity for downward price jumps within the interval, potentially linked to sudden ask-side pressure. If $|\mathcal{T}_\tau|<2$ (too few returns to define skewness), we set $\kappa_\tau = 0$. Realized skewness can help differentiate intervals driven by one-sided imbalance or asymmetric order flow.
+
+- **Autocorrelation of Log-Returns** ($\rho_{\tau}$)
+
+$$
+  \rho_{\tau} 
+  = \frac{\displaystyle \sum_{t \in \mathcal{T}_\tau \setminus \{\min\}} (r_t - \bar r)\,(r_{t-1} - \bar r)}
+         {\displaystyle \sum_{t \in \mathcal{T}_\tau} (r_t - \bar r)^2}
+$$
+
+If fewer than $3$ valid returns, we set $\rho_\tau = 0$. Autocorrelation measures the extent to which current returns are linearly related to lagged returns within the same interval. A significant positive $\rho_{\tau}$ can indicate trending micro-movements, whereas a significant negative value may reflect mean-reversion at the second-by-second scale. In both cases, such patterns can be predictive of the overall turbulence and are an integral part of the fingerprint.
+
+- **Tick Frequency** ($F_{\tau}$)
+
+$$
+  F_{\tau} = |\mathcal{T}_\tau|
+$$
+
+Tick frequency simply counts the number of valid snapshots (i.e., seconds with at least one book update) in interval $\tau$. It serves as a proxy for trading activity intensity: higher $F_{\tau}$ indicates more frequent order book changes, often associated with heightened volatility periods. Conversely, a low tick frequency may signal illiquidity or staleness in updates, which also can correlate with abrupt price jumps when activity eventually resumes. As a zero-dimensional count, $F_{\tau}$ complements the higher-order realized-moment measures.
+
+By constructing this comprehensive suite of aggregate features, we capture both the magnitude and shape of intrablock return dynamics. When combined with the averaged snapshot features, we obtain a $13$-dimensional summary for each 10-minute window. Averaging these over all intervals yields the per-stock fingerprint used in clustering. Each component of the fingerprint thus blends microstructural, temporal, and distributional information, ensuring that stocks in the same cluster exhibit similar liquidity- and volatility-driven microstructure signatures.
+
+### IQR-Based Filtering
+
+Even after computing the features vectors for all stocks and all intervals, some stocks exhibit consistently extremely high or low average volatility—often owing to illiquidity or data quirks. To avoid letting a few fractal‐like outliers *dominate clustering and forecast evaluation*, we apply a robust filtration step based on the interquartile range of cross‐sectional mean volatilities.
+
+We compute, for each stock $i$, the cross‐sectional mean of its realized volatility:
+
+$$
+\mu_i = \frac{1}{T_i} \sum_{\tau=1}^{T_i} \mathrm{RV}_{\tau}^{(i)}
+$$
+
+The **interquartile range (IQR)** is a standard measure of statistical dispersion that is less sensitive to extreme values than variance. By defining
+
+$$
+Q_1 = \text{25th percentile of } \{\mu_i\}, 
+\quad
+Q_3 = \text{75th percentile of } \{\mu_i\}, 
+\quad
+\mathrm{IQR} = Q_3 - Q_1,
+$$
+
+We identify the *middle* half of the cross‐section. Then we select only those stocks whose $\mu_i$ lie within
+
+$$
+\text{lower} = Q_1 - M \times \mathrm{IQR},
+\quad
+\text{upper} = Q_3 + M \times \mathrm{IQR},
+$$
+
+where $M=1.5$ is the conventional multiplier that balances retaining genuine variability against excluding extreme outliers. Stocks with $\mu_i$ above the upper bound typically correspond to penny stocks or names with sparse quote updates but occasional wild micro‐jumps; those with $\mu_i$ below the lower bound often represent dormant or defunct issues whose near‐zero volatility would unduly compress the clustering space. By removing these extremes, we ensure that the remaining sample reflects a meaningful range of typical trading behavior and prevents a small number of idiosyncratic names from disproportionately influencing subsequent clustering and regression steps.
+
+### K-Means Clustering
+
+For each remaining stock we form its meta-feature vector by averaging each interval feature over all $\tau$:
+
+$$
+\mu^{(i)} = \frac{1}{T_i} \sum_{\tau=1}^{T_i} \mathbf{z}_{\tau}^{(i)} \in \mathbb{R}^{13}
+$$
+
+Here, $\mathbf{z}_{\tau}^{(i)}$ denotes the 13-dimensional snapshot‐aggregate vector for stock $i$ in interval $\tau$, as defined in the preceding section. Averaging over $\tau$ yields a single, per-stock fingerprint capturing average microstructure characteristics and realized-volatility behavior.
+
+Since the 13 dimensions span heterogeneous quantities—realized volatility (in price-squared units), skewness (dimensionless), autocorrelation (dimensionless), tick frequency (seconds), and various book-state averages (price or volume units)—we standardize each component:
+
+$$
+\tilde{\mu}^{(i)}_j = \frac{\mu^{(i)}_j - \bar{\mu}_j}{s_j}, 
+\quad
+\bar{\mu}_j = \frac{1}{N_{\text{filtered}}} \sum_{i=1}^{N_{\text{filtered}}} \mu^{(i)}_j,
+\quad
+s_j = \sqrt{\frac{1}{N_{\text{filtered}} - 1} \sum_{i=1}^{N_{\text{filtered}}} (\mu^{(i)}_j - \bar{\mu}_j)^2}.
+$$
+
+Standardization ensures that features with larger raw magnitudes do not dominate the Euclidean distances used by K‐Means. It also aligns each dimension’s contribution to variance, so that clustering reflects similarity in profile shape rather than absolute scale.
+
+Finally, we apply K‐Means clustering to the set $\{\tilde{\mu}^{(i)}\}_{i=1}^{N_{\text{filtered}}}$, assigning each stock to one of $k$ clusters (we have chosen $k=5$). The choice of $k=5$ is guided by the **elbow‐method analysis** on the within‐cluster sum of squares as well as the **silhouette‐score stability** across varying $k$ in the filtered universe. This partitions stocks into homogeneous groups with similar average liquidity–volatility profiles. Such grouping facilitates both qualitative assessment (e.g., interpreting each cluster’s typical microstructure signature) and quantitative enhancements (e.g., fitting separate predictive models per cluster).  
+
+### Stock Selection
+
+Having grouped stocks, we proceed to evaluate how predictable each stock’s 10-minute realized volatility is, using a simple **lagged linear model** on five key meta‐features. Specifically, for each stock $i$, let the vector of five selected meta‐features at interval $\tau$ be denoted $z_\tau^{(i)}$. We then set up the regression framework:
+
+$$
+\mathrm{RV}_{\tau}^{(i)} = \gamma_0 + \gamma_1\,z_{\tau-1,1}^{(i)} + \dots + \gamma_5\,z_{\tau-1,5}^{(i)} + \varepsilon_\tau,
+$$
+
+Where $\gamma_0,\dots,\gamma_5$ are intercept and slope coefficients, and $\varepsilon_\tau$ is the zero-mean residual. We fit this model by **expanding‐window OLS** over $\tau=\tau_{\text{start}},\dots,T_i$, where
+
+$$
+\tau_{\text{start}} = \max\{2,\lfloor T_i/2 \rfloor\}
+$$
+
+ensures at least half the available intervals are used for estimation after an initial *burn‐in* of $1$ lag. In each step of the expanding window, all data from $\tau_{\text{start}}$ up to the current $\tau-1$ are used to estimate coefficients, and the model is then applied to generate a one-step‐ahead out‐of‐sample forecast for $\mathrm{RV}_\tau^{(i)}$. This procedure yields a time series of out‐of‐sample predictions, from which we compute two performance metrics:
+
+1. **Out‐of‐sample $R^2$ ($R_i^2$):** Measures the fraction of variance in realized volatility explained by the lagged meta‐features, evaluated strictly on hold‐out intervals.
+2. **QLIKE ($\mathrm{QLIKE}_i$):** A loss criterion defined as
+$$
+\mathrm{QLIKE}_i = \frac{1}{N_{\text{oos}}} \sum_{\tau \in \text{oos}} \left(\ln(\widehat{\mathrm{RV}}_{\tau}^{(i)}) + \frac{\mathrm{RV}_{\tau}^{(i)}}{\widehat{\mathrm{RV}}_{\tau}^{(i)}}\right),
+$$
+where $\widehat{\mathrm{RV}}_{\tau}^{(i)}$ is the forecast from the expanding-window OLS, and the sum runs over the out‐of‐sample periods. Finally, we combine these two metrics into a single score:
+
+$$
+S_i = \alpha \cdot R_i^2 - \beta \cdot \mathrm{QLIKE}_i,
+$$
+
+where we have chosen $\alpha = \beta = 0.5$ to balance explanatory power and forecast accuracy. Stocks are then sorted in descending order of $S_i$, and we select the top $30$ stocks for further modeling. The cap of $30$ stocks is imposed by computational constraints, ensuring that downstream model training and cross‐validation remain tractable given our available resources.  
+
+### Exploratory data analysis
+
+In EDA, we began by loading and inspecting raw LOB data for a representative stock. Initial steps included verifying data integrity—checking for missing timestamps and ensuring `time_id` and `seconds_in_bucket` formed sequential intervals. We then computed basic snapshot‐level features: midpoints at levels 1 and 2, bid‐ask spreads, and log‐returns. 
+
+Next, we conducted a **grid search** to identify an optimal window size for rolling realized volatility, though this step was supplementary to core modeling. Building on those insights, we engineered a second wave of features: rolling realized volatility and integrated variance, normalized level‐1/level‐2 spreads, and top‐of‐book imbalance. A subsequent grid search calibrated the adverse cost delta, allowing us to derive bid‐ask cost metrics and relative OBI. 
+
+Further feature creation introduced future midpoints, buy/sell adverse costs, relative OBI, microprice, LOB entropy (and normalized entropy), and squared returns. We also added lagged returns and gains/losses separation to capture short‐term dynamics. Finally, we assembled these features into a processing pipeline, addressing any intervals with insufficient data and ensuring chronological alignment of `time_id` and `seconds_in_bucket`.  
+
+## Feature Engineering
+
+For the top 30 stocks, we enhance the raw limit‐order‐book (LOB) data with a suite of second‐by‐second and rolling‐window features. These are designed to capture instantaneous price dynamics, order‐book complexity, and intrablock temporal patterns, yielding a richer input set for subsequent volatility modeling.
+
+Along with the *snapshot* and *aggregate* features mentioned in the filtering section we also calculate:
+
+1. **Shannon's entropy**  
+   Let  
+   $$
+   s_t = \bigl[V_{1,t}^{(b)},\,V_{2,t}^{(b)},\,V_{1,t}^{(a)},\,V_{2,t}^{(a)}\bigr], 
+   \quad
+   p_{t,i} = \frac{s_{t,i}}{\sum_{j=1}^{4} s_{t,j}}
+   $$  
+   where $s_{t,i}$ are the four size components at time $t$. The Shannon entropy and normalized entropy is given by:
+   $$
+   H_t = -\sum_{i=1}^{4} p_{t,i} \ln\bigl(p_{t,i}\bigr),
+   \quad
+   H_t^{Normal} = \frac{H_t}{\ln(4)}
+   $$
+   
+   High entropy indicates a more balanced—and thus more uncertain—order‐book distribution. By scaling to the $\ln(4)$ bound, we ensure comparability across different liquidity regimes and maintain interpretability in the range $[0,\,1]$.
+
+2. **Future Volatility Target**  
+   - We shift the realized volatility forward by *30 snapshots (seconds)* to create the one‐step‐ahead target that serves as the forecasting objective over each one‐second horizon: 
+     $$
+     \text{rv\_future}_t = \text{realized\_volatility}_{t+30}
+     $$  
+
+3. **Bipower Variation**  
+   - As a robust complement to realized volatility, we compute a **bipower variance** proxy, where the one‐lag absolute‐return product is averaged over a rolling window of 30. This captures jump‐robust variance by down‐weighting isolated large returns: 
+     $$
+     \text{bipower\_var}_t 
+     = \frac{1}{30} \sum_{j=1}^{30} \bigl|r_{t-j}\bigr|\cdot\bigl|r_{t-j-1}\bigr|
+     $$  
+     
+4. **Weighted Average Price (WAP) and Its Return**  
+   - The **weighted average price** at time $t$ is  
+     $$
+     \text{wap}_t 
+     = \frac{P_{1,t}^{(b)}\,V_{1,t}^{(a)} + P_{1,t}^{(a)}\,V_{1,t}^{(b)}}{V_{1,t}^{(b)} + V_{1,t}^{(a)}}
+     $$  
+   - Its **log‐return** is then  
+     $$
+     \text{log\_wap\_return}_t = \ln\bigl(\text{wap}_t / \text{wap}_{t-1}\bigr),
+     $$  
+
+5. **Lagged Features**  
+   - For each of **imbalance**, **book_pressure**, and **log_return**, we create first and second lags within each `time_id` group. These lagged values embed short‐term persistence or reversal signals into the feature set:  
+     $$
+     x_{t-1},\; x_{t-2},
+     $$  
+
+6. **Rolling‐Window Summaries**  
+    - **For log‐returns**: the sample standard deviation of the previous 30 log‐returns (one lagged window):  
+      $$
+      \text{log\_return}_t^{Rolling} = \sqrt{\frac{1}{29}\sum_{j=1}^{30}\bigl(r_{t-j} - \overline{r}_{t-1: t-30}\bigr)^2}\,.
+      $$  
+    - **For imbalance**: the mean of the previous 30 imbalance values (one lagged window), capturing the prevailing directional bias over a half‐minute horizon.  
+
+7. **Intrablock Temporal Encoding**  
+    - To encode the position within each 10‐minute block, let $\text{seconds\_in\_bucket}_t \in [0,\,599]$. We define  
+      $$
+      \theta_t = 2\pi \frac{\text{seconds\_in\_bucket}_t}{600}, 
+      \quad 
+      \text{sec\_sin}_t = \sin(\theta_t), 
+      \quad 
+      \text{sec\_cos}_t = \cos(\theta_t).
+      $$  
+      These sine and cosine transforms capture cyclical effects (such as regularly scheduled auctions or time‐of‐block behaviors) without imposing a linear time trend.  
+
+8. **Log‐Transformation of Book Sizes**  
+    - Finally, we apply a **log1p** transform to each raw size column ($V_{1}^{(b)}$, $V_{1}^{(a)}$, $V_{2}^{(b)}$, $V_{2}^{(a)}$)  replacing the original size columns with their log‐scaled counterparts. This reduces heavy‐tail effects in volume distributions, improving numerical stability:  
+      $$
+      \text{size\_log}_t = \ln\bigl(1 + \text{size}_t\bigr),
+      $$  
+
+We drop all rows containing any *NaNs* (e.g., arising from division by zero or insufficient history) and replace infinite values (from zero denominators) with NaN prior to the drop. This ensures a fully observed feature matrix for model fitting.  
+
+After constructing these features, we cast all `float64` values to `float32` (and `int64` to `int32`) to minimize memory usage while preserving sufficient precision. The resulting DataFrame contains a comprehensive, cleaned, and standardized feature set that combines price, liquidity, order‐book complexity, temporal, and historical‐return information—ready for downstream prediction algorithms.  
+
+## Feature Selection
+
+After constructing a comprehensive feature set, we apply two filtering steps: *variance thresholding* and *Spearman‐based de‐correlation*, to remove uninformative or redundant predictors. This yields a more parsimonious design matrix that accelerates model training and guards against overfitting.
+
+### Variance Thresholding
+
+The first filter removes any feature that exhibits zero variance across all time‐stock observations. A constant predictor cannot explain any variation in future realized volatility and only adds noise to the estimation process. Concretely, for each candidate column, we inspect its empirical variance over the entire sample of 30 stocks and all seconds within each 10‐minute bucket. If that variance is exactly zero (i.e., every value in that column is identical), the feature is dropped.  
+
+By discarding constant columns early, we reduce dimensionality without information loss. In practice, this step eliminates artifacts such as placeholder variables or features that were defined but never vary for the selected stocks (for example, a book‐depth layer that is always zero). Removing these ensures faster downstream training and numerical stability in matrix operations, since features with zero variance lead to singular covariance matrices in many estimation routines.
+
+### Spearman Correlation
+
+Next, aims to eliminate near‐collinearity among the remaining predictors by using Spearman’s rank correlation, which measures monotonic relationships regardless of linear scale. For any two variables $x$ and $y$, Spearman’s $\rho_s$ is defined by:
+
+$$
+\rho_s(x,y) \;=\; 1 \;-\; \frac{6}{n(n^2 - 1)} \sum_{k=1}^n \bigl(\operatorname{rank}(x_k) - \operatorname{rank}(y_k)\bigr)^2
+$$
+
+where each variable is replaced by its rank among all $n$ observations. The coefficient ranges from $-1$ (perfect negative monotonicity) to $+1$ (perfect positive monotonicity); we consider its absolute value to quantify the strength of any monotonic association.  
+
+We compute the full $p \times p$ Spearman correlation matrix for the variance‐filtered feature set. Whenever two features exceed a high‐collinearity threshold (e.g., $|\rho_s| > 0.98$), it indicates that one is almost a monotonic transformation of the other and thus conveys redundant information. To decide which variable to retain, we compare each feature’s total connectivity to all others by summing its absolute correlations. In any correlated pair, the feature with the smaller sum of absolute correlations is deemed more dispensable and is removed.  
+
+This prevents numerical instability in linear or regularized‐regression solvers, guards against overemphasizing a single underlying signal represented by multiple variables, and streamlines the feature set for faster training and simpler interpretation.  
+
+After Spearman screening, we reattach the one‐step‐ahead realized‐volatility target and order the dataset by stock ID, time bucket, and intra‐bucket second to produce a final, fully aligned, low‐dimensional input matrix suitable for forecasting models.  
+
+## Models
+
+### Weighted Least Squares
+
+To forecast next‐interval realized volatility, we fit a **Weighted Least Squares (WLS)** model using the selected features. WLS accommodates heteroscedasticity in the residuals by assigning each observation an inverse‐variance weight. Concretely, let 
+- $X\in\mathbb{R}^{N\times p}$ denote the matrix of $p$ predictors (with an added intercept), 
+- $\mathbf{y}\in\mathbb{R}^N$ be the one‐step‐ahead realized‐volatility target, and 
+- $\mathbf{w}\in\mathbb{R}^N$ be the weights defined by the inverse of a rolling variance of $\mathbf{y}$.  
+
+We compute the weight for each time‐stock observation $t$ via
+$$
+w_t = \frac{1}{\operatorname{Var}\bigl(y_{t-2000:t}\bigr) \;+\;\varepsilon}, 
+$$
+where $\operatorname{Var}(\cdot)$ is a rolling window of size 2000 and $\varepsilon$ is a small constant used to avoid division by zero. This weighting scheme down‐weights intervals with high target volatility variance, thereby stabilizing coefficient estimates when the noise level is large.
+
+The WLS objective minimizes
+$$
+\min_{\boldsymbol{\beta}} \sum_{t=1}^N w_t \bigl(y_t - \beta_0 - \mathbf{x}_t^\top \boldsymbol{\beta}\bigr)^2,
+$$
+where $\beta_0$ is the intercept and $\mathbf{x}_t$ is the $p$-dimensional feature vector at observation $t$. In practice:
+1. We split the data chronologically ($80\%$ train, $20\%$ test) to preserve temporal ordering.
+2. We add a constant column to the training and test feature matrices to estimate $\beta_0$.
+3. We fit the WLS model on the training set (`sm.WLS`) with weights $w_{\text{train}}$.
+4. Finally, we generate out‐of‐sample predictions $\widehat{y}_{\text{test}}$ on the held‐out portion.
+
+This approach yields coefficient estimates that naturally down‐weight periods of particularly noisy realized‐volatility observations, producing more stable forecasts when volatility heterogeneity is present.
+
+### Random Forest
+
+To stabilize variance and mitigate the influence of extreme realized‐volatility spikes, we take a log1p transform of the one‐step‐ahead target:
+$$
+y_t^\text{(log)} = \ln\bigl(1 + \mathrm{rv\_future}_t\bigr).
+$$
+
+This ensures that large values of realized volatility are compressed, improving model robustness. We then partition the dataset at the *session* level (`time_id`) to preserve temporal integrity:
+
+1. **Chronological split**:  
+   - Let $\{\tau_1, \dots, \tau_{T}\}$ be the sorted unique session IDs.  
+   - The first 80 % of sessions form the “train + validation” pool, and the remaining 20 % form the held‐out test set.
+
+2. **Train/Validation within the first 80 %**:  
+   - Of those train + validation sessions, the first 90 % (of sessions) are used for training, and the last 10 % for validation.  
+
+3. **Matrix construction**:  
+   - For each set—train, validation, test—we extract feature‐matrix $X$ (shape $[N,p]$) and log‐target vector $y^\text{(log)}$ (length $N$).  
+   - This grouping by session prevents leakage of future information across time buckets and maintains non‐overlapping intervals between train/validation/test.
+
+Now, we fit the model on the training set $\{X_{\mathrm{train}},\,y^\text{(log)}_{\mathrm{train}}\}$. A Random Forest ensembles $N_{\text{trees}}$ decision trees, each grown on a bootstrap sample of the data, and averages their predictions. Key hyperparameters:
+
+- **Number of trees** $n_{\text{estimators}} = 500$.  
+  A large forest reduces variance at the cost of more computation but yields stable out‐of‐bag estimates.
+- **Maximum features per split**: $\sqrt{p}$.  
+  At each candidate split, each tree considers a random subset of size $\sqrt{p}$, promoting de‐correlation between trees.  
+- **Minimum samples per leaf** = 3.  
+  Ensures that each terminal node has at least 3 observations, controlling over‐fitting in deep branches.  
+- **Bootstrap sampling** enabled.  
+  Each tree is trained on a random sample (with replacement) of the training set.  
+- **No maximum depth** (i.e., `max_depth=None`), allowing each tree to fully grow until the leaf‐sample constraint is met.  
+- **Parallel fitting** (`n_jobs=-1`) leverages all CPU cores for faster training.  
+- **Random state** = 42 for reproducibility.
+
+By averaging predictions across 500 decorrelated trees, the forest reduces variance compared to a single tree and handles nonlinear relationships and feature interactions automatically.
+
+After training, we predict on the validation set $\widehat{y}^\text{(log)}_{\mathrm{val}} = \text{rf.predict}(X_{\mathrm{val}})$. We compute the **Validation RMSE**:
+
+$$
+\mathrm{RMSE}_\mathrm{val} 
+= \sqrt{\frac{1}{N_\mathrm{val}} \sum_{i=1}^{N_\mathrm{val}} \bigl(y^\text{(log)}_i - \widehat{y}^\text{(log)}_i\bigr)^2}.
+$$
+
+This metric measures predictive accuracy on unseen but temporally proximate data. If $\mathrm{RMSE}_\mathrm{val}$ is substantially lower than training error, it suggests an appropriate bias–variance trade‐off; if not, further tuning of tree depth, minimum samples per leaf, or number of features may be required.
+
+With hyperparameters fixed, we evaluate on the held‐out test set:
+
+- **Predict**: $\widehat{y}^\text{(log)}_{\mathrm{test}} = \text{rf.predict}(X_{\mathrm{test}})$.
+
+- **Inverse transform** (if reporting metrics on the original scale):  $\widehat{y}_{\mathrm{test}} = \exp\bigl(\widehat{y}^\text{(log)}_{\mathrm{test}}\bigr) - 1$, though here we directly score in log‐space for stability.
+
+- **Root‐Mean‐Squared Error (RMSE)** on the original scale (**placeholder**).
+
+- The **R-Squared Value(R²)** (**placeholder**).
+
+- Finally the **QLIKE Loss** (**placeholder**) with clipping to guard against zero or negative forecasts.
 
 
-# Further Discussion
 
-## Interpretability
+### LSTM
 
-Transformers have revolutionized sequence modeling by using self-attention to weigh every input position against every other, but this very strength makes them hard to interpret. 
-In our volatility model, the lack of positional encodings and the use of global average pooling further obscure how the network arrives at its forecasts.
+To use temporal dependencies over multiple seconds, we normalize both features and targets to the unit interval before feeding them to the recurrent network. Specifically, for each stock‐time observation, we apply a MinMaxScaler fit on the training portion:
 
-One natural way to open the “black box” is to visualize the attention weights themselves. By plotting attention maps for each head and layer, we can see which past time buckets 
-the model emphasizes—revealing, for instance, whether it zeroes in on sudden price jumps or sustained order-flow imbalances. In parallel, model-agnostic tools such as LIME and 
-SHAP can approximate the transformer’s behavior around a single forecast, attributing portions of the output to each input feature. For PyTorch implementations, Captum provides 
-built-in gradient- and perturbation-based attributions, letting us drill down into any layer—even the pooling step—to understand how information flows through the network [@Lakham2024].
+- For each feature column $x_j$, we compute  
+  $$
+  x_j^\text{(scaled)} = \frac{x_j - \min(x_j)}{\max(x_j) - \min(x_j)},
+  $$  
+  using only the train‐set minima and maxima.  
+- For the one‐step‐ahead target $\mathrm{rv\_future}$, we similarly scale  
+  $$
+  y^\text{(log)} = \ln\bigl(1 + \mathrm{rv\_future}\bigr),
+  \quad
+  y^\text{(scaled)} = \frac{y^\text{(log)} - \min(y^\text{(log)})}{\max(y^\text{(log)}) - \min(y^\text{(log)})}.
+  $$  
 
-Looking further ahead, the emerging field of mechanistic interpretability (MI) offers a more fundamental approach. As demonstrated by Rai et al. (2024), MI aims to transform transformer-based 
-language models from opaque black boxes into transparent, controllable systems by reverse-engineering their internal computations—neurons, attention heads, and composite circuits—into human-understandable 
-mechanisms [@rai2024practical]. In our context, MI could pinpoint exactly which attention head signals an imminent spike in volatility, enabling targeted fine-tuning, bias mitigation, or safety audits. 
-Together, these methods—from attention visualization and LIME/SHAP explanations to cutting-edge MI—provide a clear roadmap for making transformer-based volatility models both powerful and transparent.
+By transforming both inputs and outputs to $[0,1]$, the LSTM can train more effectively, as gradients remain well‐conditioned.  
 
-LSTM networks remain opaque despite their power to learn nonlinear temporal patterns, because their high-dimensional hidden states and feedback loops cannot be reduced to clear, human-readable drivers. 
-As Firouzjaee and Khalilian show in oil-stock forecasting, even adding highly correlated inputs like crude oil, gold, or USD prices does not improve an LSTM’s core interpretability,
-since feature augmentation alone cannot expose its internal decision logic [@Firouzjaee2024]. As a result, although LSTMs excel at prediction, they offer little insight into which 
-factors truly drive their forecasts. Addressing this “black-box” nature requires specialized interpretability techniques—such as state-space analysis, attention-augmented RNNs, or 
-hybrid models—to bridge accuracy and transparency in financial applications.
+Next, we reshape the time‐stock observations into fixed‐length sequences of length 30 seconds. For each session (`time_id`), we slide a window of size 30 over the normalized feature matrix $\mathbf{X}\in\mathbb{R}^{T\times p}$ to produce input arrays of shape $(T-30,\,30,\,p)$. The corresponding target for sequence index $i$ is the scaled $\mathrm{rv\_future\_log}$ at time $i + 30$. 
 
-Random forests also sacrifice some interpretability compared to single decision trees, but they are not entirely “black box.” By averaging many trees, they deliver strong predictive 
-power while still offering ensemble-level diagnostics. Each tree’s split logic remains fully inspectable, allowing you to trace the exact path for any prediction. Global measures like
-mean decrease in impurity and permutation importance rank features by overall influence, and partial dependence or ICE plots reveal how changes in key predictors affect outputs on 
-average or for individual instances. Out-of-bag estimates provide nearly unbiased error and importance metrics without separate validation. Together, these built-in tools make random 
-forests far more interpretable than most deep “black-box” models, even if they don’t match the simplicity of a single tree [@Grigg2019].
+Formally, if $\mathbf{X}_{1:T} = \bigl[\mathbf{x}_1,\mathbf{x}_2,\dots,\mathbf{x}_T\bigr]^\top,$ then each training example is $\bigl[\mathbf{x}_i, \mathbf{x}_{i+1}, \dots, \mathbf{x}_{i+30-1}\bigr], \quad y_{i+30}$. This procedure preserves the natural ordering within each 10‐minute block and ensures no leakage between disjoint sessions.
 
-```{python, eval=FALSE}
-# Get feature importances
-importances = rf.feature_importances_
+The dataset is split chronologically by session: 80 % of sessions for training + validation, 20 % for the final test. Within the first 80 %, 90 % of sessions form the training set and 10 % the validation set. This hierarchy of splits prevents future data from contaminating earlier training examples.
 
-# Sort feature importances in descending order
-indices = np.argsort(importances)[::-1]
+We use a stacked two‐layer LSTM followed by two dense layers to predict the scaled log‐volatility:
 
-# Print the feature ranking
-print("Feature ranking:")
+1. **First LSTM layer (64 units, return_sequences=True)**  
+   - Processes each $\text{SEQ\_LEN}\times p$ input sequence and outputs a hidden representation of size 64 at every time step.  
+   - Returning sequences allows the second LSTM to capture deeper temporal patterns.
 
-for f in range(len(feature_cols_mod)):
-    print(f"{f + 1}. feature {indices[f]} ({importances[indices[f]]}) - {feature_cols_mod[indices[f]]}")
+2. **Dropout (0.2)**  
+   - A dropout fraction of 20 % is applied to the 64‐dimensional sequence output to regularize the model and prevent overfitting to idiosyncratic noise.
 
-# Plot the feature importances of the forest
-plt.figure()
-plt.title("Feature importances")
-plt.bar(range(len(feature_cols_mod)), importances[indices], align="center")
-plt.xticks(range(len(feature_cols_mod)), [feature_cols_mod[i] for i in indices], rotation=90)
-plt.xlim([-1, len(feature_cols_mod)])
-plt.show()
-```
+3. **Second LSTM layer (32 units, return_sequences=False)**  
+   - Collapses the temporally processed data into a 32‐dimensional vector representing the entire sequence.  
+   - By not returning full sequences, it summarizes past information into a single state vector.
 
-Specifically to our project, the random forest indentified ___ as the most importance features. 
+4. **Dropout (0.2)**  
+   - Applied again to the 32‐dimensional hidden state to further regularize.
+
+5. **Dense layer (16 units, ReLU activation)**  
+   - Introduces a nonlinear transformation of the LSTM output to capture cross‐feature interactions.  
+   - ReLU ensures nonnegativity and sparsity in activations.
+
+6. **Final Dense layer (1 unit, linear)**  
+   - Outputs a single scalar corresponding to the normalized log‐volatility prediction for the next timestamp.
+
+By stacking LSTM layers and interleaving dropout, the network can learn both short‐term and somewhat longer‐term dependencies within each 30‐second window, benefiting from hierarchical feature extraction.
+
+Now, we compile the model using the **Adam** optimizer with a learning rate of $10^{-4}$, minimizing mean‐squared error (MSE) between the predicted scaled log‐volatility and its true scaled value. An early‐stopping callback monitors the validation loss, halting training if no improvement occurs over five consecutive epochs, and restoring the best weights. This prevents overfitting and reduces unnecessary computation.
+
+- **Batch size** = $128$. Groups 128 sequences per gradient update, balancing convergence speed and gradient stability.  
+- **Epochs** = up to $50$, with early stopping. Training proceeds until validation loss ceases to improve for 5 epochs, typically converging in fewer than 50.
+
+After training, we generate predictions on the test set sequences and invert the scaling. If $\widehat{y}^\text{(scaled)}$ is the model’s output, the back‐transformation is:
+   $$
+   \widehat{y}^\text{(log)} = \widehat{y}^\text{(scaled)} \times \bigl(\max(y^\text{(log)}) - \min(y^\text{(log)})\bigr) + \min(y^\text{(log)})
+   $$ 
+   and then 
+   $$
+   \widehat{\mathrm{rv\_future}} = \exp\bigl(\widehat{y}^\text{(log)}\bigr) - 1$$
+   
+Next, we compute the **Root‐Mean‐Squared Error (RMSE)** on the original scale (**placeholder**), the **R-Squared Value(R²)** (**placeholder**), and finally the **QLIKE Loss** (**placeholder**) with clipping to guard against zero or negative forecasts.
+
+### Transformer
+
+As with the LSTM, we first normalize both features and the log‐transformed target to $[0,1]$ using MinMax scaling fitted on the training portion. For each feature $x_j$:
+$$
+x_j^\text{scaled} = \frac{x_j - \min(x_j)}{\max(x_j) - \min(x_j)},
+$$
+and for the one‐step‐ahead target,
+$$
+y^\text{(log)} = \ln\bigl(1 + \mathrm{rv\_future}\bigr), 
+\quad
+y^\text{scaled} = \frac{y^\text{(log)} - \min(y^\text{(log)})}{\max(y^\text{(log)}) - \min(y^\text{(log)})}.
+$$
+  
+We then segment each session (`time_id`) into overlapping windows of length 30. If $\mathbf{X}_{1:T} = [\,\mathbf{x}_1,\mathbf{x}_2,\dots,\mathbf{x}_T\,]^\top$ where $\mathbf{x}_t\in\mathbb{R}^p$ is the $p$‐dimensional feature vector at second $t$, each input sequence becomes:
+
+$$
+[\mathbf{x}_i,\mathbf{x}_{i+1},\dots,\mathbf{x}_{i+30-1}], 
+\quad 
+\text{target} = y_{i+30}^\text{scaled}.
+$$
+This preserves temporal ordering and avoids leakage. We split sessions chronologically so that 80 % of sessions form train+validation (with a 90/10 split for training vs. validation) and the final 20 % form the test set.
+
+The core of our model is a small Transformer encoder applied to each $30\times p$ input. Let $d_{\mathrm{model}}=64$ and $h=4$ heads per multi‐head attention. Denote by $x^{(0)}\in\mathbb{R}^{30\times p}$ the input to the encoder. We first project into a $d_{\mathrm{model}}$‐dimensional embedding at each time step:
+
+$$
+x^{(1)} = x^{(0)}W_\text{proj} + b_\text{proj}, 
+\quad W_\text{proj}\in\mathbb{R}^{p\times d_{\mathrm{model}}},
+$$
+yielding $x^{(1)}\in\mathbb{R}^{30\times d_{\mathrm{model}}}$.  
+
+We then stack $L=2$ identical Transformer blocks. In the $\ell$-th block:
+
+1. **Multi‐Head Self‐Attention**  
+   Compute
+   $$
+   \text{Attn}(X) = \text{Concat}\bigl(\text{head}_1,\dots,\text{head}_h\bigr)W_O,
+   $$
+   where each $\text{head}_j = \text{softmax}\bigl(Q_j K_j^\top / \sqrt{d_k}\bigr)\,V_j$, with $Q_j,K_j,V_j$ obtained by linear projections of $x^{(\ell)}$. Here $d_k = d_{\mathrm{model}}/h$. The result $\mathrm{MHA}(x^{(\ell)})\in\mathbb{R}^{30\times d_{\mathrm{model}}}$ captures pairwise interactions across all positions.  
+
+2. **Add & LayerNorm**  
+   $$
+   x^{(\ell+\tfrac{1}{2})} = \mathrm{LayerNorm}\bigl(x^{(\ell)} + \mathrm{MHA}(x^{(\ell)})\bigr).
+   $$
+   Residual connection ensures that attention augments rather than overwrites the representation.
+
+3. **Feed‐Forward Network (FFN)**  
+   Apply a two‐layer MLP with ReLU activation:
+   $$
+   \mathrm{FFN}(z) = \bigl(zW_1 + b_1\bigr) \,\xrightarrow{\text{ReLU}}\, \bigl(\cdot\,W_2 + b_2\bigr),
+   $$
+   where $W_1\in\mathbb{R}^{d_{\mathrm{model}}\times (4\,d_{\mathrm{model}})}$ and $W_2\in\mathbb{R}^{(4\,d_{\mathrm{model}})\times d_{\mathrm{model}}}$. Then
+   $$
+   x^{(\ell+1)} = \mathrm{LayerNorm}\bigl(x^{(\ell+\tfrac{1}{2})} + \mathrm{FFN}\bigl(x^{(\ell+\tfrac{1}{2})}\bigr)\bigr).
+   $$
+
+After $L=2$ such blocks, we obtain $x^{(L)}\in\mathbb{R}^{30\times d_{\mathrm{model}}}$. We then apply **GlobalAveragePooling1D**:
+$$
+\bar{x} \;=\; \frac{1}{30} \sum_{t=1}^{30} x^{(L)}_t \;\in\mathbb{R}^{d_{\mathrm{model}}}.
+$$
+
+Finally, a single‐unit linear layer maps to the scaled log‐volatility prediction:
+
+$$
+\widehat{y}^\text{(scaled)} = \bar{x}w_o + b_o, 
+\quad w_o\in\mathbb{R}^{d_{\mathrm{model}}},\,b_o\in\mathbb{R}.
+$$
+
+We compile the Transformer with the *Adam* optimizer (learning rate $10^{-3}$) and MSE loss on the scaled target. An early‐stopping callback monitors the validation MSE, halting training after 15 epochs without improvement and restoring the best weights. We train for up to 50 epochs with a batch size of 32. This combination of shallow depth and moderate regularization balances the Transformer’s capacity against overfitting, given our limited sequence length and moderate sample size.
+
+After training, we generate predictions on the test set and invert the scaling:
+
+If $\widehat{y}^\text{(scaled)}$ is the network output, we recover
+$$
+   \widehat{y}^\text{(log)} = \widehat{y}^\text{(scaled)} \times \bigl(\max(y^\text{(log)}) - \min(y^\text{(log)})\bigr) + \min(y^\text{(log)}),
+$$
+
+$$
+   \widehat{\mathrm{rv\_future}} = \exp\bigl(\widehat{y}^\text{(log)}\bigr) - 1
+$$
+
+Next, we compute the **Root‐Mean‐Squared Error (RMSE)** on the original scale (**placeholder**), the **R-Squared Value(R²)** (**placeholder**), and finally the **QLIKE Loss** (**placeholder**) with clipping to guard against zero or negative forecasts.
+
+## Evaluation Metircs
+
+To assess and compare forecast performance across all models—Weighted Least Squares, Random Forest, LSTM, and Transformer—we employ three complementary metrics: **R‐Squared**, **QLIKE**, and **MSE**. Each metric captures a different aspect of predictive quality, ensuring a balanced evaluation.
+
+### R-Squared
+
+R‐Squared measures the proportion of variance in the true realized‐volatility target that is explained by the model’s predictions. For a set of $N$ test observations $\{y_i\}$ and corresponding forecasts $\{\widehat{y}_i\}$, define
+$$
+\overline{y} \;=\; \frac{1}{N}\sum_{i=1}^N y_i.
+$$
+Then
+$$
+R^2 \;=\; 1 \;-\; \frac{\sum_{i=1}^N \bigl(y_i - \widehat{y}_i\bigr)^2}{\sum_{i=1}^N \bigl(y_i - \overline{y}\bigr)^2}.
+$$
+An $R^2$ value closer to 1 indicates that the model captures most of the variability in realized volatility, whereas a value near 0 suggests little explanatory power beyond using the sample mean. Negative values can occur if the model fits worse than a constant‐mean baseline.  
+
+For linear and nonlinear models alike, $R^2$ reflects overall fit. High $R^2$ implies strong alignment between predicted and actual volatility swings. When computed on the original volatility scale, it evaluates how well forecasts track both low and high volatility regimes; on log‐scaled targets, it emphasizes relative (percentage) accuracy, which may reduce sensitivity to extreme outliers.
+
+### QLIKE
+
+QLIKE (Quasi‐Likelihood) is a loss function tailored to volatility forecasting. It penalizes under‐ and over‐prediction asymmetrically and remains finite even when realized volatility is small. For each test index $i$, define the ratio
+$$
+r_i = \frac{y_i}{\widehat{y}_i},
+$$
+where $y_i$ is the realized volatility (on the original scale) and $\widehat{y}_i$ is the corresponding forecast. Then
+$$
+\mathrm{QLIKE} 
+= \frac{1}{N} \sum_{i=1}^N \Bigl( r_i - \ln r_i - 1 \Bigr),
+$$
+with both $y_i$ and $\widehat{y}_i$ clipped to a small $\varepsilon > 0$ to avoid division by zero or negative arguments of the logarithm. 
 
 
-## Limitations
+When $\widehat{y}_i = y_i$, the $i$th term equals 0; larger divergence yields positive penalty. Underestimation ($\widehat{y}_i < y_i$) incurs heavier penalty than symmetric overestimation, reflecting the greater cost of missing volatility spikes.  
 
-Although the transformer model outperforms our other approaches, it has several constraints that may limit its practical use. First, we restricted the context window to 30 
-time steps—this may miss important longer-range dependencies if volatility patterns span beyond a half-minute interval. Second, our implementation uses only two encoder layers 
-and a modest embedding size (d_model = 64), which may be insufficient to capture intricate, multi-scale dynamics in high-frequency data. Third, transformers are prone to 
-overfitting, and even with early stopping this risk remains if the validation split does not fully represent market regimes. Finally, the heavy computation required by 
-self-attention often forces compromises in data breadth: we trained on only a subset of stocks and files. If these trade-offs prove unacceptable, Optiver may need to scale up 
-hardware, prune or distill the model, or fall back to simpler architectures.
+QLIKE is robust to occasional large realized values since the logarithmic term grows slowly. Lower QLIKE indicates better forecast calibration to actual volatility levels, especially in extreme events. It complements $R^2$ by focusing on magnitude accuracy rather than explained variance.
 
-Our LSTM suffers from related challenges. While two layers of 64 and 32 units coupled with dropout can learn nonlinear temporal patterns, the same 30-step window may not align 
-with true autocorrelation horizons. Without additional regularization or batch normalization, dropout alone may not prevent overfitting—especially when model complexity outpaces
-training data. And, like transformers, LSTMs offer limited visibility into their hidden-state dynamics.
+### MSE
 
-Random forests sidestep many of these issues by fixing model complexity and avoiding sequence recursion, but they treat each bucket independently, failing to exploit the temporal 
-order inherent in time series. This requires extensive feature engineering—lags, rolling statistics, seasonal indicators—to expose trends and autocorrelation. Furthermore, random 
-forests assume stationarity and can still overfit if trees grow too deep, which is why we capped depth at 12.
+Mean Squared Error (MSE) quantifies the average squared deviation between forecasted and actual values. For $N$ test observations,
+$$
+\mathrm{MSE} 
+= \frac{1}{N} \sum_{i=1}^N \bigl(y_i - \widehat{y}_i\bigr)^2.
+$$
+When we report Root‐Mean‐Squared Error (RMSE), we take
+$$
+\mathrm{RMSE} = \sqrt{\mathrm{MSE}}.
+$$
 
-Across all models, our use of MinMax scaling presumes that the distribution of prices remains constant between training and deployment. Because MinMaxScaler is sensitive to extreme 
-values, any outliers in stock prices can distort feature ranges and destabilize predictions. More robust scaling methods or outlier‐mitigation steps may be necessary to ensure 
-consistency on new data.
+MSE (or RMSE) on the original volatility scale penalizes large errors quadratically, making it sensitive to outliers. When computed on the log‐transformed target, it emphasizes relative percentage deviations rather than absolute differences, which can be more stable for highly heteroscedastic volatility data.  
+
+Unlike $R^2$, which is unitless, MSE has units of volatility squared (or squared log‐volatility if applied in log space). Directly optimizes squared error, making it a natural objective for many learning algorithms (e.g., LSTM, Transformer). Combined with QLIKE and $R^2$, it completes a triad: MSE highlights absolute accuracy, QLIKE emphasizes penalization of volatility spikes, and $R^2$ measures overall explanatory power.
+
+## Limitations & Improvements
+
+Although the transformer model yields superior accuracy, its use of a 30‐step context window may overlook longer‐range dependencies; moreover, the implementation uses only two encoder layers and a modest embedding size (d_model = 64), which may not capture multi‐scale dynamics in high‐frequency data. Transformers remain prone to overfitting if the validation split does not fully represent diverse market regimes, and the computational burden of self‐attention forced us to train on only a subset of stocks and files. Mitigating these constraints may require scaled hardware, model pruning or distillation, or fallback to simpler architectures.
+
+The LSTM model—configured with two layers of 64 and 32 units plus dropout—shares similar context‐window limitations and still risks overfitting without additional regularization or batch normalization; its hidden‐state dynamics also offer limited interpretability. Random forests bypass sequence recursion and fix model complexity, but they ignore temporal order and rely on extensive feature engineering (lags, rolling statistics, seasonal indicators) to capture autocorrelation. Capping tree depth at 12 addresses overfitting but may reduce model flexibility.
+
+Using MinMax scaling presumes that price distributions remain constant between training and deployment. Because MinMaxScaler is sensitive to outliers, extreme values can distort feature ranges and destabilize predictions, indicating that more robust scaling methods or explicit outlier‐mitigation may be required in live settings.
+
+Although transformer and LSTM models achieve higher standalone accuracy, their opacity and potential latency can hinder human‐machine collaboration in trading. Simpler models like WLS or random forests—though less accurate in isolation—can outperform opaque models when interpretability supports decision‐making *(Yin and Babic 2024)*.
+
+## Conclusion
+
+This study addresses the practical needs of market makers and trading firms such as Optiver, where accurate volatility forecasts drive pricing, hedging, and real‐time inventory management (Optiver 2020). The Transformer model achieved the lowest MSE and QLIKE and the highest $R^2$ on test data, indicating its capacity to learn complex volatility patterns and corroborating evidence that Transformers capture long‐range dependencies in financial time series (Paul 2024). The LSTM model also exhibited stable performance across samples, underscoring its robustness under volatile conditions. 
+
+Despite its superior forecasting accuracy, the Transformer’s computational complexity and limited interpretability may hinder deployment in latency‐sensitive trading environments. In practice, a model that balances predictive precision with interpretability and low latency—such as a well‐tuned LSTM or simpler alternative—can offer firms like Optiver a more effective and transparent decision‐making framework.
+
+# Refrences
+
+## Model Architecture
+
+### LSTM
+
+<table style="
+  width:100%;
+  border-collapse: collapse;
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.3;
+">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">
+        Layer&nbsp;(type)
+      </th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">
+        Output&nbsp;Shape
+      </th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:right;font-weight:bold;">
+        Param&nbsp;#
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        lstm_8&nbsp;(<span style="color:#0087ff;">LSTM</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">25,088</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_8&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        lstm_9&nbsp;(<span style="color:#0087ff;">LSTM</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">32</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">12,416</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_9&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">32</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_8&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">16</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">528</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_9&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">1</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">17</span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.4;
+">
+  <div><strong>Total&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">38,049</span>&nbsp;(148.63&nbsp;KB)</div>
+  <div><strong>Trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">38,049</span>&nbsp;(148.63&nbsp;KB)</div>
+  <div><strong>Non-trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">0</span>&nbsp;(0.00&nbsp;B)</div>
+</div>
 
 
-## Industry Context: Interpretability-Accuracy Trade-Off
 
-Although Transformer- and LSTM-based models offered better accuracy, there is a trade-off between it and interpretability. WLS and Random Forest offer some feature transparency. Transformer is the best-performing, but also the most complex and opaque, with potential latency trade-offs. In practice, models with the same level of accuracy as Transformer would give Optiver a strong edge, if it could run with an acceptable level of latency.
+### Transformer
 
-The traditional assumption of a strict trade-off (more interpretability implies a lower level of accuracy) is oversimplified. A model with lower standalone accuracy (e.g. Random Forest, WLS) can outperform a more accurate but opaque model (e.g. Transformer) in collaborative human-machine settings, because it allows better interpretation and decision-making by the human. In a context like trading at Optiver, where humans interpret model output, collaborative performance matters more than standalone accuracy, as misinterpretation can be costly. Even high-performing models like Transformers can perform poorly in practice if humans can not understand their outputs [@YinBabic2024]. 
+<!-- Colour-coded, full-width model summary with connections -->
+<table style="
+  width:100%;
+  border-collapse: collapse;
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.3;
+  table-layout: fixed;
+  word-wrap: break-word;
+">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Layer&nbsp;(type)</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Output&nbsp;Shape</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:right;font-weight:bold;">Param&nbsp;#</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Connected&nbsp;to</th>
+    </tr>
+  </thead>
 
+  <tbody>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        input_layer&nbsp;(<span style="color:#0087ff;">InputLayer</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">23</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">–</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">1,536</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        input_layer[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
 
-# Conclusion
+    <!-- 3 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        multi_head_attention&nbsp;(<span style="color:#0087ff;">MultiHeadAttention</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]&nbsp;(q,&nbsp;k,&nbsp;v)
+      </td>
+    </tr>
 
-This research was focused on the practical needs of market makers and trading firms like Optiver, where precise volatility forecasts are essential for pricing, hedging, and real-time inventory management [@Optiver2020].  The Transformer-based model proved to be more accurate than the other models, with the lowest MSE and QLIKE, and the highest R2 on test data. This shows its ability to capture complex patterns in volatility, aligning with findings that Transformers effectively model long-range dependencies in financial time series [@Paul2024]. Both LSTM and Transformer models showed relatively consistent performance across samples, demonstrating robustness under volatile market conditions. 
+    <!-- 4 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>],&nbsp;multi_head_attention
+      </td>
+    </tr>
 
-While the Transformer model offers superior accuracy, its complexity and opacity present challenges for real-world trading deployment. In practice, models that balance accuracy with interpretability and latency considerations may provide firms like Optiver with a stronger edge, enabling more efficient and transparent decision-making processes.
+    <!-- 5 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
 
+    <!-- 6 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_1&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">256</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization
+      </td>
+    </tr>
 
-# References
+    <!-- 7 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_2&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,448</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 8 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_1&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_2[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 9 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_1&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization,&nbsp;dropout_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 10 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 11 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        multi_head_attention_2&nbsp;(<span style="color:#0087ff;">MultiHeadAttention</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2
+      </td>
+    </tr>
+
+    <!-- 12 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_2&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2,&nbsp;multi_head_attention_2
+      </td>
+    </tr>
+
+    <!-- 13 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_2[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 14 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_3&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">256</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3
+      </td>
+    </tr>
+
+    <!-- 15 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_4&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,448</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 16 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_3&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_4[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 17 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_3&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3,&nbsp;dropout_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 18 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_4&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 19 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        global_average_pooling&nbsp;(<span style="color:#0087ff;">GlobalAveragePooling1D</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_4
+      </td>
+    </tr>
+
+    <!-- 20 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_4&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        global_average_pooling
+      </td>
+    </tr>
+
+    <!-- 21 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_5&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">1</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">65</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_4[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.4;
+">
+  <div><strong>Total&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">101,569</span>&nbsp;(396.75&nbsp;KB)</div>
+  <div><strong>Trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">101,569</span>&nbsp;(396.75&nbsp;KB)</div>
+  <div><strong>Non-trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">0</span>&nbsp;(0.00&nbsp;B)</div>
+</div>
 
 ## Code
 
@@ -445,7 +1358,7 @@ print(f"Calculated detailed features for {stock_time_id_features.shape[0]} stock
 print(stock_time_id_features.head())
 ```
 
-### Filtering
+### IQR-Based Filtering
 
 ```{python, eval=FALSE}
 # compute mean realized volatility per stock
@@ -1193,10 +2106,14 @@ print("QLIKE:", ql)
 
 ## Plots
 
-```{r include-corr-plot, echo=FALSE, out.width='100%', fig.cap="Correlation Plot"}
+```{r include-corr-plot, echo=FALSE, out.width='100%', fig.cap=""}
 knitr::include_graphics("Corr-1.png")
 ```
 
-```{r include-hist-plot, echo=FALSE, out.width='100%', fig.cap="Data Distribution"}
+```{r include-hist-plot, echo=FALSE, out.width='100%', fig.cap=""}
 knitr::include_graphics("FinalDF-Hist.png")
+```
+
+```{r include-rvgs-plot, echo=FALSE, out.width='100%', fig.cap="Data Distribution"}
+knitr::include_graphics("RV-GS.png")
 ```
