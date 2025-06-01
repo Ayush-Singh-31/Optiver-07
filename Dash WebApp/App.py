@@ -10,8 +10,8 @@ import glob
 
 PLOTLY_TEMPLATE = "plotly_white"
 DBC_THEME = dbc.themes.LUX
-DATA_DIR = "/Users/hanzichun/Desktop/Optiver-07/Dash WebApp/Data"
-GENERAL_CSV_PATH = "/Users/hanzichun/Desktop/Optiver-07/Dash WebApp/Data/General.csv"
+DATA_DIR = "Data"
+GENERAL_CSV_PATH = "Data/General.csv"
 MODEL_FOLDERS = ["WLS", "Random Forest", "LSTM", "Transformer"]
 
 try:
