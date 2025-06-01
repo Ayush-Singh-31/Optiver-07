@@ -1,7 +1,7 @@
 ---
 title: "DATA3888: Predicting Stock Volatility"
 author: "Ayush Singh, Tobit Louis, Kylie Haryono, Christy Lee, Zichun Han"
-date: "2025-05-24"
+date: "2025-06-01"
 format:
   html:
     code-tools: true
@@ -23,54 +23,27 @@ editor:
   markdown: 
     wrap: 72
 ---
+[GitHub repository](https://github.com/Ayush-Singh-31/Optiver-07)
 
 # Executive Summary
 
-This project explores how well modern deep learning models are able to predict short-term volatility using high-frequency Level-2 Limit Order Book (LOB) data. For trading firms such as Optiver, even minimal gains in forecast accuracy could greatly improve market making and risk control decisions. We compared deep learning models, specifically Transformers and LSTMs, and evaluated them under the same feature pipeline, ensuring predictive accuracy and feasibility both in theory and in practice. The transformer model delivered the strongest predictive performance, creating subtle patterns in noisy financial data. The LSTM model performed consistently across market conditions, offering a reliable balance of accuracy and efficiency. While deep learning models like the Transformer show promise in forecast accuracy, its heavily computational demands and opaque decision process reflect a trade-off between precision and latency. For firms operating in real-time trading settings, this trade-off suggests that LSTMs or even simpler models, if properly tuned, remain a better option.
-
-
 ## Research Question
 
-Short-term volatility forecasting is critical for high-frequency
-trading, risk management, and market-making. This study investigates
-whether advanced deep learning architectures can enhance predictive
-accuracy using ultra-high-frequency Level-2 Limit Order Book (LOB) data.
-Specifically, we evaluate whether a Transformer-based model can
-outperform traditional Long Short-Term Memory (LSTM) networks when both
-models are trained on identically preprocessed datasets with equivalent
-engineered features. The goal is to determine if the Transformer's
-attention mechanism offers a material advantage in capturing complex
-microstructural dynamics inherent in LOB data.
+Short-term volatility forecasting is critical for high-frequency trading, risk management, and market-making. This study investigates whether advanced deep learning architectures can enhance predictive accuracy on ultra-high-frequency Level-2 Limit Order Book (LOB) data. Specifically, we evaluate whether a *Transformer-based* model can outperform traditional *Long Short-Term Memory (LSTM) networks* when both models are trained on identically preprocessed datasets with equivalent engineered features.
 
 ### Hypothesis
 
 #### Null Hypothesis (H₀)
 
-Given equivalent data quality, feature engineering, and preprocessing
-conditions, a Transformer-based model does not outperform LSTM networks
-in short-term volatility forecasting on Level-2 Limit Order Book (LOB)
-data.
+Given equivalent data quality, feature engineering, and preprocessing conditions, a Transformer-based model **does not outperform** LSTM networks in short-term volatility forecasting on Level-2 LOB data.
 
 #### Alternative Hypothesis (H₁)
 
-Given equivalent data quality, feature engineering, and preprocessing
-conditions, a Transformer-based model outperforms LSTM networks in
-short-term volatility forecasting on Level-2 Limit Order Book (LOB)
-data.
+Given equivalent data quality, feature engineering, and preprocessing conditions, a Transformer-based model **outperforms** LSTM networks in short-term volatility forecasting on Level-2 LOB data.
 
 ## Key Findings
 
-Our analysis shows that the Transformer model achieves superior
-performance in short-term volatility forecasting, consistently
-outperforming over 15 candidate models. In general, it attains an
-**out-of-sample R² of 0.62** and **QLIKE loss of 0.14**, capturing 62%
-of realized volatility variation—substantially higher than the WLS and
-Random Forest baselines, and measurably better than the LSTM. In
-favorable market regimes, performance improves to **out-of-sample R² of
-0.78** and **QLIKE loss of 0.05**. The Transformer's attention mechanism
-effectively identifies temporally localized predictive structures in
-high-frequency order flow, yielding robust and highly accurate
-forecasts.
+Our analysis shows that the Transformer model achieves superior performance in short-term volatility forecasting, consistently outperforming LSTM networks. In general, it attains an **out-of-sample R² of 0.62** and **QLIKE loss of 0.14**, capturing $62\%$ of realized volatility variation—substantially higher than the *WLS* and *Random Forest* baselines, and measurably better than the *LSTM*. In favorable market regimes, performance improves to **out-of-sample R² of 0.78** and **QLIKE loss of 0.05**. The Transformer's attention mechanism effectively identifies temporally localized predictive structures in high-frequency order flow, yielding robust and highly accurate forecasts.
 
 ```{r include-model-plot, echo=FALSE, out.width='100%', fig.cap=""}
 knitr::include_graphics("model_comparison.png")
@@ -78,83 +51,117 @@ knitr::include_graphics("model_comparison.png")
 
 ## Relevance
 
-The demonstrated predictive accuracy of the Transformer model has direct
-implications for high-frequency trading, risk management, and option
-pricing. High-quality real-time volatility estimates support tighter
-bid-ask spreads, more efficient hedging, and improved capital deployment
-under microsecond constraints. By capturing core properties of
-stochastic volatility—namely clustering, persistence, and asymmetry—the
-Transformer enables materially better real-time decision-making in
-trading and portfolio optimisation contexts.
+The demonstrated accuracy of the Transformer model has direct implications in high-frequency trading, risk management, and option pricing. High-quality real-time volatility estimates support tighter bid-ask spreads, more efficient hedging, and improved capital deployment under microsecond constraints. By capturing core properties of volatility (clustering, persistence, and asymmetry) the Transformer allows better real-time decision-making in trading and portfolio optimisation contexts.
 
 # Volatility Prediction
 
-Volatility is the degree to which the return of an asset deviates from
-its expected value over a given time horizon. Formally if $r_t$ denotes
-the (logarithmic) return at time $t$ and $\mu = \mathbb{E}[r_t]$ is its
-mean, then the (unconditional) volatility $\sigma$ can be defined as the
-standard deviation of $r_t$:
+Volatility is the degree to which the return of an asset deviates from its expected value over a given time horizon. Formally if $r_t$ denotes the logarithmic return at time $t$ and $\mu = \mathbb{E}[r_t]$ is its mean, then the (unconditional) volatility $\sigma$ can be defined as the standard deviation of $r_t$:
 
 $$
 \sigma \;=\;\sqrt{\mathbb{E}\bigl[(r_t - \mu)^2\bigr]}\,
 $$
 
-In empirical, high‐frequency settings, one often works with realized
-volatility over a discrete interval (e.g., within one trading day or a
-fixed 10‐minute window). If $\{r_{t,i}\}_{i=1}^N$ are the equally‐spaced
-intraday returns within that interval, then the realized volatility is
+In empirical, high‐frequency settings, one often works with realized volatility over a discrete intervals. Formally, if $\{r_{t,i}\}_{i=1}^N$ are the equally‐spaced intraday returns within that interval, then the realized volatility is
 given by:
 
 $$
 \sigma_{\mathrm{realized}} = \sqrt{\sum_{i=1}^N r_{t,i}^2}
 $$
 
-which converges, under increasingly fine sampling, to the integrated
-variance of the underlying continuous‐time price process.
-
 ## Loading Data
 
-The dataset consists of ultra-high-frequency Level-2 limit order book
-snapshots recorded at 1-second resolution across 600-second intervals.
-Each row corresponds to a fixed-time observation of a single stock and
-includes:
+The dataset consists of ultra-high-frequency Level-2 LOB snapshots recorded at $1$-second resolution across $600$-second intervals. Each row corresponds to a fixed-time observation of a single stock and includes:
 
 -   **Price features:** Best bid and ask prices at levels 1 and 2.
 -   **Volume features:** Corresponding sizes at these levels.
 -   **Time identifiers:** `time_id` and `seconds_in_bucket`.
 -   **Stock identifier:** `stock_id` uniquely indexing each equity.
 
-We load the data from all *112 individual CSV files*, each indexed by
-`time_id` and `seconds_in_bucket`. The data is scanned lazily using
-**Polars** with strict schema enforcement to ensure memory efficiency.
-Files are then consolidated and written as a compressed Parquet object
-for downstream processing.
+We load the data from all *112 individual CSV files*, each indexed by `time_id` and `seconds_in_bucket`. The data is scanned lazily using **Polars** with strict schema enforcement to ensure memory efficiency. Files are then consolidated and written as a compressed **Parquet** object for downstream processing.
 
 
 ## Filtering
 
-Now, we aim to *predict, rank,* and *cluster* stocks based on the predictability of their short-term (10-minute) volatility. First, raw LOB snapshots are transformed into numerical indicators capturing micro-structure signals. These are then aggregated into 10-minute interval statistics—such as *realised volatility*, *skewness*, *autocorrelation*, and *averaged book-state features*. **Snapshot features** such as microprice ($m_t$)
+Now, we aim to *predict*, *rank*, and *cluster* stocks based on the predictability of their short-term ($10$-minute) volatility. First, we extract snapshot and aggregate features from the raw LOB data. For each stock, we compute a $13$-dimensional feature vector by averaging across all intervals. Finally, we apply K-Means clustering to group stocks with similar microstructure volatility profiles, train a lagged linear model, and select the top $30$ stocks.
+
+### Snapshot features
+
+Using the existing features in our dataset we create the following:
+
+- **Microprice** ($m_t$)
 
 $$
   m_t = \frac{P_{1,t}^{(b)} \cdot V_{1,t}^{(a)} + P_{1,t}^{(a)} \cdot V_{1,t}^{(b)}}{V_{1,t}^{(b)} + V_{1,t}^{(a)} + \varepsilon}
 $$
 
-are computed at each second to serve as a continuous proxy for the “fair” execution price, reflecting order book imbalance at the best level. 
+Here $\varepsilon$ is a small constant used to avoid division by 0. It is set to $10^{-12}$. The microprice tilts toward the side with greater resting depth, capturing which side (bid vs. ask) is likelier to execute next. If $V_{1,t}^{(b)} + V_{1,t}^{(a)} = 0$, we fallback to the mid‐price. 
 
-**Aggregate Features** such as log returns ($r_t$)
+- **Spreads** ($\Delta_{t}^{(1)}$, $\Delta_{t}^{(2)}$)
+
+$$
+  \Delta_{t}^{(1)} = P_{1,t}^{(a)} - P_{1,t}^{(b)}
+$$
+
+$$
+  \Delta_{t}^{(2)} = P_{2,t}^{(a)} - P_{2,t}^{(b)}
+$$
+
+Spreads measure instantaneous liquidity, and empirically, wider spreads often precede higher short‐term volatility.
+
+- **Imbalance** ($I_{1,t}$)
+
+$$
+  I_{1,t} = \frac{V^{(b)}_{1,t} - V^{(a)}_{1,t}}{V^{(b)}_{1,t} + V^{(a)}_{1,t} + \varepsilon}
+$$
+
+This imbalance at top‐of‐book often signals short‐term directional pressure. A positive value indicates *bid-side dominance* (upward pressure) while a negative value indicates *sell-side dominance* (downward pressure).
+
+- **Book Pressure** ($B_t$)
+
+$$
+B_t = \frac{V^{(b)}_{1,t} + V^{(b)}_{2,t}}{V^{(b)}_{1,t} + V^{(b)}_{2,t} + V^{(a)}_{1,t} + V^{(a)}_{2,t} + \varepsilon}
+$$
+
+- **Mean Snapshot Features** ($\overline{x}_{\tau}$)
+
+For each snapshot feature we also calculate:
+
+$$
+  \overline{x}_{\tau} 
+  = \frac{1}{|\mathcal{T}_\tau|} \sum_{t \in \mathcal{T}_\tau} x_t
+$$
+
+Here $\mathcal{T}_\tau$ is the set of valid seconds in interval $\tau$. Averaging instantaneous features over the entire 10-minute block yields measures of the prevailing book state. These means form core components of each stock’s 13-dimensional *fingerprint*.
+
+### Aggregate Features
+
+We build our aggregate features on the second-by-second *log-returns* that captures the *instantaneous price changes*.
+
+- **Microprice log‐return** ($r_t$)
 
 $$
   r_t = \ln{m_t} - \ln{m_{t-1}} = \ln(m_t/m_{t-1})
 $$
 
-and realised volatility ($\mathrm{RV}_{\tau}$)
+- **Realized Volatility** ($\mathrm{RV}_{\tau}$)
 
 $$
   \mathrm{RV}_{\tau} 
   = \sqrt{\sum_{t \in \mathcal{T}_\tau} \bigl[\ln(m_t) - \ln(m_{t-1})\bigr]^2}
 $$
 
-are also computed, along with skewness, autocorrelation
+We drop any $r_t=\pm \infty$ (which can occur if $m_{t-1}$ or $m_t$ is zero) and omit *NaNs*. If fewer than two valid log-returns exist, we set $\mathrm{RV}_{\tau} = 0$ for that interval.
+
+- **Realized Skewness** ($\kappa_{\tau}$)
+
+$$
+  \kappa_{\tau} 
+  = \frac{1}{|\mathcal{T}_\tau|} \sum_{t \in \mathcal{T}_\tau} \left(\frac{\ln(m_t/m_{t-1}) - {\frac{1}{|\mathcal{T}_\tau|} \sum_{t \in \mathcal{T}_\tau} \ln(m_t/m_{t-1})}}{\sqrt{\frac{1}{|\mathcal{T}_\tau| - 1} \sum_{t \in \mathcal{T}_\tau} (\ln(m_t/m_{t-1}) - \bar r)^2}}\right)^3
+$$
+
+Skewness indicates whether returns in window $\tau$ have a heavy tail on one side, which can help differentiate intervals driven by one-sided imbalance or asymmetric order flow. If $|\mathcal{T}_\tau|<2$ we set $\kappa_\tau = 0$.
+
+- **Autocorrelation of Log-Returns** ($\rho_{\tau}$)
 
 $$
   \rho_{\tau} 
@@ -162,62 +169,85 @@ $$
          {\displaystyle \sum_{t \in \mathcal{T}_\tau} (r_t - \bar r)^2}
 $$
 
-and tick frequency ($F_{\tau}$)
+If we have fewer than $3$ valid returns, we set $\rho_\tau = 0$.
+
+- **Tick Frequency** ($F_{\tau}$)
 
 $$
   F_{\tau} = |\mathcal{T}_\tau|
 $$
 
-For each stock, we compute a 13-dimensional vector which represents the average of all these features across time.
+When combined with the averaged snapshot features, we obtain a $13$-dimensional summary for each 10-minute window. Averaging these over all intervals yields the per-stock fingerprint used in clustering.
 
-To remove extreme outliers, we apply **IQR-based filtering** on each stock’s average realised volatility.
+### IQR-Based Filtering
+
+Some stocks exhibit extreme average volatility—often due to illiquidity or data quirks—which can dominate clustering and forecast evaluation. To address this, we apply *IQR-based filtering* on each stock’s average realised volatility.
+
+For each stock $i$, compute its mean realized volatility:
+$$
+\mu_i = \frac{1}{T_i} \sum_{\tau=1}^{T_i} \mathrm{RV}_\tau^{(i)}.
+$$
+Let $Q_1$ and $Q_3$ be the 25th and 75th percentiles of $\{\mu_i\}$, and define
 
 $$
-\mu_i = \frac{1}{T_i} \sum_{\tau=1}^{T_i} \mathrm{RV}_{\tau}^{(i)}
+\mathrm{IQR} = Q_3 - Q_1,\quad
+\text{lower} = Q_1 - M \times \mathrm{IQR},\quad
+\text{upper} = Q_3 + M \times \mathrm{IQR},
 $$
 
-This step removes erratic stocks that could distort clustering. The remaining stocks form the sample for **K-means clustering**– where we group stocks with similar micro-structure volatility profiles. By standardising each dimension to unit variance before clustering, we ensure that no single feature dominates the grouping. This approach identifies groups of stocks that cluster into distinct liquidity-volatility regimes based on their microstructural profiles.
+with $M = 1.5$. We exclude stocks with $\mu_i < \text{lower}$ or $\mu_i > \text{upper}$. Stocks above the bound tend to have sporadic spikes, while those below the bound often have near-zero volatility. Removing these extremes ensures the remaining sample reflects typical trading behavior.
 
-In **Stock Selection**, to assess each stock's 10-minute volatility predictability, we fit a lagged linear model using 5 meta-features:
+### K-Means Clustering
 
-$$
-\mathrm{RV}_{\tau}^{(i)} = \gamma_0 + \gamma_1\,z_{\tau-1,1}^{(i)} + \dots + \gamma_5\,z_{\tau-1,5}^{(i)} + \varepsilon_\tau.
-$$
-
-where $\gamma_0,\dots,\gamma_5$ are intercept and slope coefficients, and $\varepsilon_\tau$ is the zero-mean residual. We fit this model by **expanding‐window OLS** over $\tau=\tau_{\text{start}},\dots,T_i$, where
+For each filtered stock $i$, compute its $13$-dimensional fingerprint as:
 
 $$
-\tau_{\text{start}} = \max\{2,\lfloor T_i/2 \rfloor\}
+\mu^{(i)} = \frac{1}{T_i} \sum_{\tau=1}^{T_i} \mathbf{z}_\tau^{(i)},
+$$
+where $\mathbf{z}_\tau^{(i)}$ is the snapshot-aggregate vector for stock $i$ in interval $\tau$.
+
+Because these $13$ components span heterogeneous units, we standardize each dimension to prevents features with large raw magnitudes from dominating *Euclidean distances* and aligns each dimension’s influence on clustering.:
+
+$$
+\tilde{\mu}^{(i)}_j = \frac{\mu^{(i)}_j - \bar{\mu}_j}{s_j},\quad
+\bar{\mu}_j = \frac{1}{N_{\text{filtered}}} \sum_{i=1}^{N_{\text{filtered}}} \mu^{(i)}_j,\quad
+s_j = \sqrt{\frac{1}{N_{\text{filtered}} - 1} \sum_{i=1}^{N_{\text{filtered}}} (\mu^{(i)}_j - \bar{\mu}_j)^2}.
 $$
 
-to forecase one-step-ahead values. Performance was evaluated using two metrics:
+We then run K-Means on  $\{\tilde{\mu}^{(i)}\}_{i=1}^{N_{\text{filtered}}}$ with $k=5$, chosen via **elbow‐method** and **silhouette‐score analyses**. This groups stocks into homogeneous liquidity–volatility profiles, facilitating both qualitative interpretation and the option to fit separate predictive models per cluster.
 
-1.  **Out‐of‐sample** $R^2$ ($R_i^2$): variance explained on holdout intervals
-2.  **QLIKE** ($\mathrm{QLIKE}_i$)
-    $$
-    \mathrm{QLIKE}_i = \frac{1}{N_{\text{oos}}} \sum_{\tau \in \text{oos}} \left(\ln(\widehat{\mathrm{RV}}_{\tau}^{(i)}) + \frac{\mathrm{RV}_{\tau}^{(i)}}{\widehat{\mathrm{RV}}_{\tau}^{(i)}}\right),
-    $$ 
-    
-We combine these 2 metrics into a single score via:
-    
+### Stock Selection
+
+Having grouped stocks, we assess the predictability of each $10$-minute realized volatility using a **lagged linear model** on five meta-features. For stock $i$, let $z_\tau^{(i)} \in \mathbb{R}^5$ be the selected features at interval $\tau$. We fit:
+
 $$
-S_i = \alpha \cdot R_i^2 - \beta \cdot \mathrm{QLIKE}_i,
+\mathrm{RV}_\tau^{(i)} = \gamma_0 + \sum_{j=1}^5 \gamma_j\,z_{\tau-1,j}^{(i)} + \varepsilon_\tau
 $$
 
-with $\alpha = \beta = 0.5$, and select the top $30$ stocks ranked by $S_i$.
+via **expanding-window OLS** over $\tau = \tau_{\text{start}}, \dots, T_i$, where $\tau_{\text{start}} = \max\{2, \lfloor T_i/2\rfloor\}$ ensures at least half the data is available after a $1$-lag burn-in. At each $\tau$, we estimate on all data from $\tau_{\text{start}}$ to $\tau-1$ and forecast $\widehat{\mathrm{RV}}_\tau^{(i)}$. From these out-of-sample forecasts, we compute **Out-of-sample $R^2$** and **QLIKE**. We combine these into a score:
 
-In **Exploratory Data Analysis (EDA)**, we inspected raw LOB data for a representative stock by verifying data integrity and computing basic snapshot-level features like midpoints, bid-ask spreads and log-returns. Next, a **grid search** was conducted to set an optimal window size for rolling realised volatility. Building on this, we then engineered more features like said rolling realised volatility and integrated variance. Additionally, we also included lagged returns and squared returns, creating a processing pipeline aligned by `time_id` and `seconds_in_bucket`.
+$$
+S_i = 0.5\,R_i^2 \;-\; 0.5\,\mathrm{QLIKE}_i.
+$$
+Stocks are ranked by $S_i$, and the top $30$ are selected to keep downstream modeling and cross-validation tractable.
 
+## Exploratory data analysis
+
+In EDA, we extracted key features and examined their distributions to guide scaling decisions. These distributions were **right-skewed** with small positive values, indicating a transaction costs in trading.
+
+```{r include-bas1-plot, echo=FALSE, out.width='100%', fig.cap=""}
+knitr::include_graphics("BAS-1.png")
+```
+
+Comparing across our selected stocks revealed differences in *median* and *dispersion*, highlighting *liquidity variation*. We then generated a correlation **heatmap** to assess linear relationships among features and performed a *grid search* to determine the optimal window size for rolling realized volatility.
+
+```{r include-bas2-plot, echo=FALSE, out.width='100%', fig.cap=""}
+knitr::include_graphics("Corr-3.png")
+```
 
 ## Feature Engineering
 
-For the top 30 stocks, we enhanced raw LOB data using engineered
-features that describe price action, order book structure, and
-short-term temporal patterns. These features give downstream models more
-signal on liquidity imbalance, market pressure, and volatility.
-
-Along with the *snapshot* and *aggregate* features mentioned in the
-filtering section we also calculate:
+For the top 30 stocks, along with the snapshot and aggregate features mentioned in the *filtering* section we engineered various second‐by‐second and rolling‐window features. These are designed to capture price dynamics, order‐book complexity, and temporal patterns, yielding a richer input set for modeling.
 
 1.  **Shannon's entropy**
 
@@ -226,487 +256,1236 @@ filtering section we also calculate:
     \quad
     p_{t,i} = \frac{s_{t,i}}{\sum_{j=1}^{4} s_{t,j}}
     $$
-
     $$
     H_t = -\sum_{i=1}^{4} p_{t,i} \ln\bigl(p_{t,i}\bigr),
     \quad
     H_t^{Normal} = \frac{H_t}{\ln(4)}
     $$
 
-    This captures the uncertainty in order book volume distribution,
-    scaled to $[0,1]$ for compatibility. High entropy indicates balanced
-    bid/ask sizes, implying more unpredictable price movements.
+This captures the uncertainty in order book volume distribution,scaled to $[0,1]$ for compatibility. High entropy indicates balanced bid/ask sizes, implying more unpredictable price movements.
 
-2.  **Future Volatility Target**\
-    We shift realised volatility 30 seconds ahead, to reserve as
-    prediction target. $$
-      \text{rv\_future}_t = \text{realised\_volatility}_{t+30}
+2. **Future Volatility Target**  
+
+     $$
+     RV_t^{Future} = RV_{t+30}
+     $$ 
+
+We shift the realized volatility forward by *30 seconds* to create the one‐step‐ahead target.
+
+3. **Bipower Variation**  
+
+     $$
+     Bvar_t 
+     = \frac{1}{30} \sum_{j=1}^{30} \bigl|r_{t-j}\bigr|\cdot\bigl|r_{t-j-1}\bigr|
      $$
 
-3.  **Bipower Variation**\
-    This serves as a jump-resistant measure of variance. $$
-      \text{bipower\_var}_t 
-      = \frac{1}{30} \sum_{j=1}^{30} \bigl|r_{t-j}\bigr|\cdot\bigl|r_{t-j-1}\bigr|
+4. **Weighted Average Price (WAP)**  
+ 
      $$
+     WAP_t 
+     = \frac{P_{1,t}^{(b)}\,V_{1,t}^{(a)} + P_{1,t}^{(a)}\,V_{1,t}^{(b)}}{V_{1,t}^{(b)} + V_{1,t}^{(a)}}
+     $$  
 
-4.  **Weighted Average Price (WAP) and Its Return**\
-    $$
-      \text{wap}_t 
-      = \frac{P_{1,t}^{(b)}\,V_{1,t}^{(a)} + P_{1,t}^{(a)}\,V_{1,t}^{(b)}}{V_{1,t}^{(b)} + V_{1,t}^{(a)}}
-     $$\
-    $$
-      \text{log\_wap\_return}_t = \ln\bigl(\text{wap}_t / \text{wap}_{t-1}\bigr),
      $$
+     WAP_t^{(log)} = \ln\bigl(WAP_t / WAP_{t-1}\bigr)
+     $$ 
 
-5.  **Lagged Features**\
-    We create first and second lags for imbalance, pressure, and return
-    to create short-term memory effects. $$
-      x_{t-1},\; x_{t-2},
+5. **Lagged Features**  
+
      $$
+     x_{t-1},\; x_{t-2},
+     $$ 
 
-6.  **Rolling‐Window Summaries**\
-    This captures recent volatility and order book bias.
+For each of **imbalance**, **book_pressure**, and **log_return**, we create first and second lags within each `time_id` group.
 
--   Standard deviation of past 30 log returns:
+6. **Rolling‐Window Summary**  
 
-$$
-\text{log\_return}_t^{Rolling} = \sqrt{\frac{1}{29}\sum_{j=1}^{30}(r_{t-j} - \overline{r}_{t-1:t-30})^2}
-$$
+      $$
+      {Log-Returns}_t^{Rolling} = \sqrt{\frac{1}{29}\sum_{j=1}^{30}\bigl(r_{t-j} - \overline{r}_{t-1: t-30}\bigr)^2}\,
+      $$ 
 
--   Mean of past 30 imbalance values (short-term directional skew)
+7. **Intrablock Temporal Encoding**  
 
-7.  **Intrablock Temporal Encoding**
-    This encodes relative time position within each 10-min bucket to allow learning of cyclical patterns.
+      $$
+      \theta_t = 2\pi \frac{\text{seconds\_in\_bucket}_t}{600}, 
+      \quad 
+      \text{sec\_sin}_t = \sin(\theta_t), 
+      \quad 
+      \text{sec\_cos}_t = \cos(\theta_t).
+      $$  
+      
+These encode the position within each 10‐minute block and capture cyclical effects without imposing a linear time trend.  
 
-$$
-\theta_t = 2\pi \frac{\text{seconds\_in\_bucket}_t}{600},\quad \text{sec\_sin}_t = \sin(\theta_t),\quad \text{sec\_cos}_t = \cos(\theta_t)
-$$
-        
-8.  **Log‐Transformation of Book Sizes**
-    This stabilises extreme volumes and reduces skew in raw bid/ask sizes.
+8. **Log‐Transformation of Book Sizes**  
 
-$$
-\text{size\_log}_t = \ln(1 + \text{size}_t)
-$$
-
-    Rows with NaNs or infs are dropped after transformation. Float64s and int64s are cast to 32-bit for memory efficiency.
-
+      $$
+      \text{size\_log}_t = \ln\bigl(1 + \text{size}_t\bigr),
+      $$  
+      
+Finally, we apply a **log1p** transform to each raw size column ($V_{1}^{(b)}$, $V_{1}^{(a)}$, $V_{2}^{(b)}$, $V_{2}^{(a)}$)  replacing the original size columns with their log‐scaled counterparts. This reduces heavy‐tail effects in volume distributions, improving numerical stability.  Rows with **NaNs** or **infs** are dropped after transformation and we also cast all `float64` values to `float32` to minimize memory usage.
 
 ## Feature Selection
 
-To reduce redundancy and improve training efficiency, we applied two filtering steps.
+### Variance Thresholding
 
-### 1. Variance Thresholding  
-Drops features that are constant across all rows. These add no predictive value and can destabilise models.
+First we drop any feature with **zero variance** across all stocks and all seconds within each 10-minute bucket. As a constant predictor cannot explain future volatility and only adds noise. For each column, compute its empirical variance over 30 stocks and all time points; if $\mathrm{Var}(x)=0$, we remove that feature.
 
-### 2. Spearman De-correlation  
-Removes highly correlated features based on rank correlations $|\rho_s| > 0.98$.
+### Spearman Correlation
+
+Next we compute **Spearman’s rank correlation** to detect *near-collinearity* among remaining features. For variables $x$ and $y$ over $n$ observations, Spearman’s $\rho_s$ is
 
 $$
-\rho_s(x,y) = 1 - \frac{6}{n(n^2 - 1)} \sum_{k=1}^n \left(\operatorname{rank}(x_k) - \operatorname{rank}(y_k)\right)^2
+\rho_s(x,y) \;=\; 1 \;-\; \frac{6}{n(n^2 - 1)} \sum_{k=1}^n\bigl(\mathrm{rank}(x_k) - \mathrm{rank}(y_k)\bigr)^2.
 $$
 
-When two features are highly monotonic, we drop the one that has higher total correlation with other features.
-
-After filtering, the reattached target column and sorted dataset produce a clean, lower-dimensional matrix for modeling.
-
+We build the full $p \times p$ **Spearman matrix** and, whenever $|\rho_s|>0.98$, identify one redundant feature. To choose which to drop, sum each feature’s absolute correlations with all others; the feature with the smaller total is removed.
 
 ## Models
 
 ### Weighted Least Squares
 
-To forecast next‐interval realised volatility, we fit a **Weighted Least Squares (WLS)** model using the selected features. WLS accounts for heteroscedasticity by assigning inverse‐variance weights. Let:
-- $X \in \mathbb{R}^{N\times p}$ be the predictor matrix (plus intercept),
-- $\mathbf{y} \in \mathbb{R}^N$ the target,
-- $\mathbf{w} \in \mathbb{R}^N$ the weights, where
+To forecast next‐interval realized volatility, we fit a WLS model using selected features. WLS accounts for heteroscedasticity by assigning inverse‐variance weights. Let $X\in\mathbb{R}^{N\times p}$ be the predictor matrix (including an intercept), $\mathbf{y}\in\mathbb{R}^N$ the one‐step‐ahead realized‐volatility target, and $\mathbf{w}\in\mathbb{R}^N$ the weights, where for each observation $t$:
+
 $$
-w_t = \frac{1}{\operatorname{Var}(y_{t-2000:t}) + \varepsilon}.
+w_t = \frac{1}{\mathrm{Var}(y_{t-2000:t}) + \varepsilon},
+$$
+with a rolling window of size 2000 and small $\varepsilon$ to avoid division by zero. This down‐weights periods of high volatility noise, stabilizing coefficient estimates.
+
+The WLS minimises:
+
+$$
+\min_{\beta} \sum_{t=1}^N w_t \bigl(y_t - \beta_0 - \mathbf{x}_t^\top \beta\bigr)^2,
 $$
 
-WLS minimises:
-$$
-\min_{\\boldsymbol{\beta}} \sum_{t=1}^N w_t (y_t - \beta_0 - \mathbf{x}_t^\top \boldsymbol{\beta})^2.
-$$
+where $\beta_0$ is the intercept and $\mathbf{x}_t$ the $p$‐dimensional features at $t$. 
 
-We split the data chronologically (80% train, 20% test), add a constant column, and fit `sm.WLS` on the training set. This down‐weights noisy intervals, yielding more stable coefficient estimates under volatility heterogeneity.
-
-As a comparable baseline, WLS produced **Root‐Mean‐Squared Error (RMSE) of 0.000495** on the original scale, **$R^2$ of 0.552**, and **QLIKE loss of 0.2129**.
+We split the data chronologically ($80\%$ train, $20\%$ test), add a constant column, and fit WLS. This yields coefficient estimates that are less influenced by high‐variance intervals, producing more stable forecasts under volatility heterogeneity.
 
 ### Random Forest
 
-To stabilise variance and reduce outlier influence, we log‐transform the target:
+A Random Forest is an ensemble of decision trees that reduces variance and captures nonlinear feature interactions, making it well-suited for predicting realized volatility which exhibits spikes and heteroscedasticity. 
+
+We first apply a **log1p** transform to the target to compress large spikes: 
+
 $$
-y_t^{\text{(log)}} = \ln(1 + \mathrm{rv\_future}_t).
+y_t^{(\mathrm{log})} = \ln\bigl(1 + \mathrm{rv\_future}_t\bigr)
+$$ 
+
+We then split the data by `time_id` to preserve temporal ordering: the first $80\%$ of sessions are reserved for *train* and *validation* and the last $20\%$ for *test*. Within the first $80\%$, the first $90\%$ of sessions form the training set and the remaining forms validation set. For each split we extract the feature matrix $X$ and log-target. 
+
+We train the model with the following parameters:
+
+```{python, eval=FALSE}
+rf = RandomForestRegressor(
+    n_estimators=500,
+    max_depth=None,
+    max_features='sqrt',
+    min_samples_leaf=3,
+    bootstrap=True,
+    n_jobs=-1,
+    random_state=42,
+    verbose=1
+)
+rf.fit(X_train, y_train)
+```
+
+
+After fitting, we predict on validation to compute the out-of-sample RMSE for manual hyperparameter adjsment:
+
 $$
-
-We split data by `time_id`:
-- 80% sessions for train + validation, 20% test,
-- within the 80%, 90% train, 10% validation,
-- features and targets grouped by session to prevent leakage.
-
-We fit the model on $\{X_{\mathrm{train}}, y^{(\text{log})}_{\mathrm{train}}\}$. Key hyperparameters:
-- $n_{\text{estimators}} = 500$
-- max features per split = $\sqrt{p}$
-- min samples per leaf = 3
-- no max depth (`max_depth=None`)
-- bootstrap enabled, parallel cores used (`n_jobs = -1`)
-- random seed = 42
-
-After training, we validate on:
+\mathrm{RMSE}_{\mathrm{val}} = \sqrt{\frac{1}{N_{\mathrm{val}}} \sum_{i=1}^{N_{\mathrm{val}}} \bigl(y_i^{(\mathrm{log})} - \widehat{y}_i^{(\mathrm{log})}\bigr)^2},
 $$
-\mathrm{RMSE}_\mathrm{val} = \sqrt{\frac{1}{N_\mathrm{val}} \sum (y_i^{\text{(log)}} - \widehat{y}_i^{\text{(log)}})^2}.
-$$
-
-If validation RMSE is too low or high, we tune hyperparameters accordingly. Final evaluation on test set includes:
-- Predicting: $\widehat{y}^\text{(log)}_{\mathrm{test}} = \text{rf.predict}(X_{\mathrm{test}})$  
-- Inverse transform (if needed): $\exp(\widehat{y}^\text{(log)}) - 1$  
-- **RMSE of 0.000458**, **$R^2$ of 0.597**, and **QLIKE of 0.1857**.
-
+Finally, we evaluate on the held-out test set by predicting $\widehat{y}_{\mathrm{test}}^{(\mathrm{log})}$ to compute final metrics (RMSE, $R^2$, and QLIKE) in *log-space* for stability.
 
 ### LSTM
 
-We scale all features and the log‐target to $[0,1]$ using MinMaxScaler fit on training data:
+An LSTM captures temporal dependencies over multiple seconds, making it well-suited for modeling sequential volatility patterns as well.
+
+First we fit a **MinMaxScaler** on the training set. For the target, we again use **log1p** scaling: 
+
 $$
-x_j^{\text{(scaled)}} = \frac{x_j - \min(x_j)}{\max(x_j) - \min(x_j)}, \quad
-y^{\text{(scaled)}} = \frac{\ln(1 + \mathrm{rv\_future}) - \min}{\max - \min}.
+y^{(\mathrm{log})} = \ln\bigl(1 + RV^{Future}\bigr),\quad
+y^{(\mathrm{scaled})} = \frac{y^{(\mathrm{log})} - \min(y^{(\mathrm{log})})}{\max(y^{(\mathrm{log})}) - \min(y^{(\mathrm{log})})}.
+$$  
+
+Then we group the data by `time_id` and slide a $30$-second window over the scaled feature matrix $X\in\mathbb{R}^{T\times p}$ to form input sequences of shape $(T-30,\,30,\,p)$, with targets at $t+30$. We split the sessions chronologically: $80\%$ for train and validation ($90\%$ train, $10\%$ validation), $20\%$ for test.
+
+**Model Architecture:**  
+<table style="
+  width:100%;
+  border-collapse: collapse;
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.3;
+">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">
+        Layer&nbsp;(type)
+      </th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">
+        Output&nbsp;Shape
+      </th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:right;font-weight:bold;">
+        Param&nbsp;#
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        lstm_8&nbsp;(<span style="color:#0087ff;">LSTM</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">25,088</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_8&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        lstm_9&nbsp;(<span style="color:#0087ff;">LSTM</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">32</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">12,416</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_9&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">32</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_8&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">16</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">528</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_9&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">1</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">17</span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+We train using the **Adam** optimizer with a learning rate of $10^{-4}$ and *minimize MSE* on the scaled log-volatility. Training uses a batch size of $128$ and runs for up to $50$ epochs, with **early stopping** triggered after $5$ epochs of no validation improvement. We have $38,049$ trainable parameters.
+
+After training, we predict the scaled log-volatility $\widehat{y}^{(\mathrm{scaled})}$ on the test set and invert it using the stored training minima and maxima: 
 $$
-
-Each session is reshaped into 30-second rolling windows. For index $i$, input is $[\mathbf{x}_i, \dots, \mathbf{x}_{i+29}]$, with target at $i+30$. Data is split chronologically:
-- 80% sessions = train + validation, 20% = test,
-- 90/10 split within train + validation,
-- features and targets grouped by session to prevent leakage.
-
-We use a stacked two‐layer LSTM followed by two dense layers to predict
-the scaled log‐volatility:
-1.  **First LSTM layer (64 units, return_sequences=True)**: allows the second LSTM to capture deeper temporal patterns.
-2.  **Dropout (0.2)**: to regularize the model and prevent overfitting to idiosyncratic noise.
-3.  **Second LSTM layer (32 units, return_sequences=False)**: summarises past information into a single state vector.
-4.  **Dropout (0.2)**
-5.  **Dense layer (16 units, ReLU activation)**: introduces a nonlinear transformation to capture cross‐feature interactions.
-6.  **Final Dense layer (1 unit, linear)**: outputs a single scalar corresponding to the normalised log‐volatility prediction for the next timestamp.
-
-We compile with **Adam** (lr $10^{-4}$), MSE loss, early stopping (patience = 5), batch size 128, up to 50 epochs.
-
-After predicting on the test set, we invert the scaling.
+\widehat{y}^{(\mathrm{log})} = \widehat{y}^{(\mathrm{scaled})}\times(\max(y^{(\mathrm{log})})-\min(y^{(\mathrm{log})})) + \min(y^{(\mathrm{log})}),\quad
+\widehat{RV^{Future}} = \exp\bigl(\widehat{y}^{(\mathrm{log})}\bigr) - 1.
 $$
-\widehat{y}^{(\text{log})} = \widehat{y}^{(\text{scaled})} \cdot (\max - \min) + \min, \quad
-\widehat{\mathrm{rv\_future}} = \exp(\widehat{y}^{(\text{log})}) - 1.
-$$
-
-We then compute:
-- **RMSE of 0.000448**,
-- **$R^2$ of 0.604**,
-- **QLIKE of 0.1821** with clipping to prevent instability.
-
+We then evaluate performance on the original volatility scale using RMSE, $R^2$, and QLIKE.
 
 ### Transformer
 
-As with the LSTM, we scale both features and the log‐transformed target to $[0,1]$ using MinMax scaling fit on training data. For each $x_j$:
+A Transformer captures long‐range dependencies via self‐attention, making it very effective for volatility sequences with complex patterns.
+
+Similar to LSTM we fit **MinMax scalers** on training data. For the target, we again use **log1p** scaling: 
 $$
-x_j^{\text{scaled}} = \frac{x_j - \min}{\max - \min}, \quad
-y^{\text{(log)}} = \ln(1 + \mathrm{rv\_future}), \quad
-y^{\text{scaled}} = \frac{y^{\text{(log)}} - \min}{\max - \min}.
+y^{(\mathrm{log})} = \ln\bigl(1 + RV^{Future}\bigr),\quad
+y^{(\mathrm{scaled})} = \frac{y^{(\mathrm{log})} - \min(y^{(\mathrm{log})})}{\max(y^{(\mathrm{log})}) - \min(y^{(\mathrm{log})})}.
+$$ 
+
+The sequence construction and the train-test-validation split is identical to the LSTM model. This model is trained on $101,569$ parameter, taking more $300$ GPU-hours to train.
+
+**Model Architecture:**  
+
+<table style="
+  width:100%;
+  border-collapse: collapse;
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.3;
+  table-layout: fixed;
+  word-wrap: break-word;
+">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Layer&nbsp;(type)</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Output&nbsp;Shape</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:right;font-weight:bold;">Param&nbsp;#</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Connected&nbsp;to</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        input_layer&nbsp;(<span style="color:#0087ff;">InputLayer</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">23</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">–</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">1,536</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        input_layer[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 3 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        multi_head_attention&nbsp;(<span style="color:#0087ff;">MultiHeadAttention</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]&nbsp;(q,&nbsp;k,&nbsp;v)
+      </td>
+    </tr>
+
+    <!-- 4 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>],&nbsp;multi_head_attention
+      </td>
+    </tr>
+
+    <!-- 5 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 6 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_1&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">256</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization
+      </td>
+    </tr>
+
+    <!-- 7 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_2&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,448</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 8 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_1&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_2[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 9 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_1&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization,&nbsp;dropout_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 10 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 11 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        multi_head_attention_2&nbsp;(<span style="color:#0087ff;">MultiHeadAttention</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2
+      </td>
+    </tr>
+
+    <!-- 12 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_2&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2,&nbsp;multi_head_attention_2
+      </td>
+    </tr>
+
+    <!-- 13 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_2[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 14 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_3&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">256</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3
+      </td>
+    </tr>
+
+    <!-- 15 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_4&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,448</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 16 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_3&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_4[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 17 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_3&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3,&nbsp;dropout_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 18 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_4&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 19 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        global_average_pooling&nbsp;(<span style="color:#0087ff;">GlobalAveragePooling1D</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_4
+      </td>
+    </tr>
+
+    <!-- 20 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_4&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        global_average_pooling
+      </td>
+    </tr>
+
+    <!-- 21 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_5&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">1</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">65</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_4[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+We train using the **Adam** optimizer with a learning rate of $10^{-3}$, minimizing MSE on the scaled target. Training proceeds with a batch size of $32$ for up to $50$ epochs, using early stopping based on validation MSE with a patience of $15$ epochs; the best weights are restored upon stopping. 
+
+After training, we predict $\widehat{y}^{(\mathrm{scaled})}$ on the test set and invert it using the stored train-set extrema:
 $$
-
-We segment each session into overlapping 30-second windows. If $\mathbf{X}_{1:T} = [\mathbf{x}_1, \dots, \mathbf{x}_T]^\top$, then each input becomes:
+\widehat{y}^{(\mathrm{log})} = \widehat{y}^{(\mathrm{scaled})} \times (\max(y^{(\mathrm{log})}) - \min(y^{(\mathrm{log})})) + \min(y^{(\mathrm{log})}),
+\quad
+\widehat{RV^{Future}} = \exp\bigl(\widehat{y}^{(\mathrm{log})}\bigr) - 1.
 $$
-[\mathbf{x}_i, \dots, \mathbf{x}_{i+29}], \quad \text{target} = y_{i+30}^{\text{scaled}}.
-$$
-
-Sessions are split chronologically: 80% for train+validation (90/10 split), and 20% for test.  
-
-The core model is a Transformer encoder applied to each $30 \times p$ input. With $d_{\text{model}} = 64$, $h = 4$ heads, and $L = 2$ layers, the input is first projected to embedding space:
-$$
-x^{(1)} = x^{(0)} W_{\text{proj}} + b_{\text{proj}}, \quad W_{\text{proj}} \in \mathbb{R}^{p \times d_{\text{model}}}.
-$$
-
-Each Transformer block contains:
-
-1. **Multi‐Head Self Attention**  
-   $$
-   \text{head}_j = \text{softmax}\left(\frac{Q_j K_j^\top}{\sqrt{d_k}}\right)V_j, \quad
-   \text{MHA}(X) = \text{Concat}(\text{head}_1, \dots, \text{head}_h) W_O
-   $$
-
-2. **Add & LayerNorm**  
-   $$
-   x^{(\ell+\tfrac{1}{2})} = \text{LayerNorm}(x^{(\ell)} + \text{MHA}(x^{(\ell)}))
-   $$
-
-3. **Feed‐Forward Network (FFN)**  
-   $$
-   \text{FFN}(z) = \text{ReLU}(z W_1 + b_1) W_2 + b_2
-   $$
-
-Final representation is obtained after both layers:
-$$
-x^{(L)} \in \mathbb{R}^{30 \times d_{\text{model}}}
-$$
-
-We apply global average pooling:
-$$
-\bar{x} = \frac{1}{30} \sum_{t=1}^{30} x_t^{(L)}, \quad
-\widehat{y}^{\text{(scaled)}} = \bar{x} w_o + b_o.
-$$
-
-We train using the **Adam** optimizer (lr $10^{-3}$) and MSE loss, with early stopping (15 epochs) and batch size 32 for up to 50 epochs.
-
-After training:
-$$
-\widehat{y}^{\text{(log)}} = \widehat{y}^{\text{(scaled)}} \cdot (\max - \min) + \min, \quad
-\widehat{\mathrm{rv\_future}} = \exp(\widehat{y}^{\text{(log)}}) - 1
-$$
-
-Finally, we then compute:
-- **RMSE of 0.000413**,
-- **R-Squared Value ($R^2$) of 0.624**,
-- **QLIKE loss of 0.1548** with clipping to prevent instability.
-
+Model performance is evaluated on the original volatility scale using RMSE, $R^2$, and QLIKE.
 
 ## Evaluation Metrics
 
-To evaluate predictive accuracy, we use three metrics: **R-squared ($R^2$)**, **Mean Squared Error (MSE)**, and **QLIKE Loss**. Each highlights a different aspect of forecast quality.
+### R-Squared
 
-**R-squared ($R^2$)** measures how much of the variance in realised volatility is explained by the model. Formally:
 $$
-R^2 = 1 - \frac{\sum_t (y_t - \widehat{y}_t)^2}{\sum_t (y_t - \bar{y})^2},
-$$
-where $\widehat{y}_t$ is the prediction and $\bar{y}$ the mean of the target. 
-
-Higher $R^2$ implies strong alignment between predicted and actual volatility swings, indicating better overall fit. When computed on the original volatility scale, it evaluates how well forecasts track both low and high volatility regimes; on log‐scaled targets, it emphasises relative (percentage) accuracy, which may reduce sensitivity to extreme outliers.
-
-**MSE** quantifies the average squared difference between predicted and true values:
-$$
-\mathrm{MSE} = \frac{1}{N} \sum_{t=1}^N (y_t - \widehat{y}_t)^2.
+\overline{y} \;=\; \frac{1}{N}\sum_{i=1}^N y_i,\quad
+R^2 \;=\; 1 \;-\; \frac{\sum_{i=1}^N (y_i - \widehat{y}_i)^2}{\sum_{i=1}^N (y_i - \overline{y})^2}.
 $$
 
-This penalises large errors more than small ones, making it sensitive to outliers. A lower MSE means the model is more accurate on average, though it can be skewed by extreme volatility spikes. While $R^2$ captures relative model fit, MSE gives a direct measure of raw prediction error on the same scale as the target.
+R-Squared measures the fraction of variance in realized volatility explained by the forecasts. Higher $R^2$ (closer to 1) indicates stronger alignment between predicted and actual volatility. For $N$ test observations $\{y_i\}$ and predictions $\{\widehat{y}_i\}$:
 
-The MSE is then converted to RMSE to retain the original scale.
+### QLIKE
 
-**QLIKE Loss** is designed for evaluating variance forecasts. It penalises the model more when predicted variance is too low—something especially risky in financial settings. It’s defined as:
 $$
-\text{QLIKE}_t = \log \widehat{y}_t + \frac{y_t}{\widehat{y}_t},
+\mathrm{QLIKE} = \frac{1}{N} \sum_{i=1}^N \bigl(r_i - \ln r_i - 1\bigr),
+\quad
+r_i = \frac{y_i}{\widehat{y}_i},
 $$
-where $y_t$ is the true volatility and $\widehat{y}_t$ is the forecast.
 
-Lower QLIKE values indicate more reliable variance estimation. Unlike MSE, which treats all errors equally, QLIKE focuses on *how wrong* the model is in high-volatility settings—e.g. underestimating sudden spikes. It has become a standard metric in volatility modeling due to this asymmetric penalty.
+QLIKE is a loss tailored to volatility forecasting that penalizes underestimation more heavily. Lower QLIKE indicates better calibration to actual volatility, especially during spikes. Note that both $y_i$ and $\widehat{y}_i$ clipped to a small $\varepsilon>0$.
 
-Together, these three metrics offer complementary views:  
-- **$R^2$** reflects how well the model explains overall variability  
-- **MSE** captures average prediction error
-- **QLIKE** evaluates robustness under financial risk
+### MSE
 
-All scores are computed on the held-out test set using the original volatility scale unless otherwise specified.
+$$
+\mathrm{MSE} = \frac{1}{N}\sum_{i=1}^N (y_i - \widehat{y}_i)^2,\quad
+\mathrm{RMSE} = \sqrt{\mathrm{MSE}}.
+$$
+
+Mean Squared Error quantifies average squared deviation between forecasts and actual values. Computed on the original scale, MSE penalizes large errors quadratically; on the log scale, it emphasizes relative deviations.
+
+### Results
+
+```{r include-model-plot2, echo=FALSE, out.width='100%', fig.cap=""}
+knitr::include_graphics("model_comparison.png")
+```
+
+As shown in the comparison chart, the **Transformer** outperformed all other models, achieving the lowest MSE ($\approx 1.7 \times 10^-7$), lowest QLIKE ($\approx 0.15$), and highest $R^2$ ($\approx 0.62$). The **LSTM** ranked second (MSE $\approx 2.0 \times 10^-7$, QLIKE $\approx 0.18$, $R^2$ $\approx 0.59$), followed by **Random Forest** (MSE $\approx 2.2 \times 10^-7$, QLIKE $\approx 0.19$, $R^2$ $\approx 0.57$). **WLS** performed worst (MSE $\approx 2.5 \times 10^-7$, QLIKE $\approx 0.20$, $R^2$ $\approx 0.55$). This confirms the Transformer’s superior accuracy and calibration for 10-minute volatility forecasting.
 
 ## Limitations & Improvements
 
-Although the transformer model yields superior accuracy, its use of a
-30‐step context window may overlook longer‐range dependencies; moreover,
-the implementation uses only two encoder layers and a modest embedding
-size (d_model = 64), which may not capture multi‐scale dynamics in
-high‐frequency data. Transformers remain prone to overfitting if the
-validation split does not fully represent diverse market regimes, and
-the computational burden of self‐attention forced us to train on only a
-subset of stocks and files. Mitigating these constraints may require
-scaled hardware, model pruning or distillation, or fallback to simpler
-architectures.
+- **Scaling & Preprocessing**  
+MinMax and IQR filtering can be distorted by extreme outliers or evolving distributions, leading to unstable features and retained mid-range anomalies. Use robust scaling (e.g., median/IQR, Winsorization) and dynamic trimming (rolling statistics) to adapt to real-time volatility shifts.
 
-The LSTM model—configured with two layers of 64 and 32 units plus
-dropout—shares similar context‐window limitations and still risks
-overfitting without additional regularization or batch normalization;
-its hidden‐state dynamics also offer limited interpretability. Random
-forests bypass sequence recursion and fix model complexity, but they
-ignore temporal order and rely on extensive feature engineering (lags,
-rolling statistics, seasonal indicators) to capture autocorrelation.
-Capping tree depth at 12 addresses overfitting but may reduce model
-flexibility.
+- **Transformer**  
+A 30-step context window and only two encoder layers (d_model=64) may miss longer-range, multi-scale dynamics. The model is prone to overfitting if validation splits don’t capture diverse regimes, and self-attention’s cost forced training on a subset of stocks. Introduce hierarchical/dilated attention or lightweight positional encodings to capture broader context without inflating size. Apply pruning/distillation or scale hardware so full data can be used; consider fallback to a shallower temporal CNN if compute is constrained.
 
-Using MinMax scaling presumes that price distributions remain constant
-between training and deployment. Because MinMaxScaler is sensitive to
-outliers, extreme values can distort feature ranges and destabilize
-predictions, indicating that more robust scaling methods or explicit
-outlier‐mitigation may be required in live settings.
+- **LSTM**  
+Fixed 30-second sequences can overlook dependencies beyond that window; two-layer architecture still risks overfitting, and MinMax scaling is sensitive to session-specific outliers. Experiment with longer (60–120s) or hierarchical windows and add robust normalization (e.g., IQR). Include stronger regularization (batch norm, zoneout) or attention to improve generalization and interpretability.
 
-Although transformer and LSTM models achieve higher standalone accuracy,
-their opacity and potential latency can hinder human‐machine
-collaboration in trading. Simpler models like WLS or random
-forests—though less accurate in isolation—can outperform opaque models
-when interpretability supports decision‐making *(Yin and Babic 2024)*.
+- **Random Forest**  
+Ignores temporal order, relying solely on engineered lags to capture autocorrelation; rare volatility spikes remain underrepresented, biasing leaf estimates. Employ sample-level weighting or oversampling for high-volatility intervals; consider gradient-boosted models (e.g., XGBoost) that can better adapt to tail events, and incorporate sequence-aware features if latency allows.
 
-## Conclusion
+- **WLS & Linear Models** 
+Linear form cannot capture nonlinear regime shifts; static rolling windows (e.g., size=2000) may generate noisy weights during spikes. Use time-decay or adaptive windowing to downweight outdated data, and augment with spline expansions or switch to regularized rolling regressions (Elastic Net) to model mild nonlinearities.
 
-This study addresses the practical needs of market makers and trading
-firms such as Optiver, where accurate volatility forecasts drive
-pricing, hedging, and real‐time inventory management (Optiver 2020). The
-Transformer model achieved the lowest MSE and QLIKE and the highest
-$R^2$ on test data, indicating its capacity to learn complex volatility
-patterns and corroborating evidence that Transformers capture long‐range
-dependencies in financial time series (Paul 2024). The LSTM model also
-exhibited stable performance across samples, underscoring its robustness
-under volatile conditions.
+- **Interpretability & Latency**  
+Deep models (Transformer, LSTM) are opaque and incur higher inference latency, which can hinder real-time trading decisions. Integrate explainability methods (e.g., SHAP, attention visualization) and compress models via quantization or distillation. Maintain a mixed-ensemble approach where simpler models (WLS, Random Forest) serve low-latency needs, reserving deep models for periodic batch updates.
 
-Despite its superior forecasting accuracy, the Transformer’s
-computational complexity and limited interpretability may hinder
-deployment in latency‐sensitive trading environments. In practice, a
-model that balances predictive precision with interpretability and low
-latency—such as a well‐tuned LSTM or simpler alternative—can offer firms
-like Optiver a more effective and transparent decision‐making framework.
+# Student Contributions
+
+- **Ayush** was responsible for the entire coding workflow, from reading CSV files to developing and evaluating the final model. He also created the Shiny app, prepared the final presentation, and finalized the written report.
+- **Kylie** contributed the industry context for the research, edited presentation materials, and co-wrote the final report.
+- **Christy** assisted in editing both the final presentation and the written report.
+- **Zichun** contributed to model development and implementation, evaluated model performance, and produced supporting visualizations.
+- **Tobit** developed candidate models and integrated Ayush’s preprocessing and feature engineering pipelines. He also authored the limitations and interpretability sections of the report.
 
 # References
 
-::: {#refs}
-:::
+1. Van Rossum, G., & Drake, F. L. (2009). **Python** (Version 3.x) [Programming language].  
+   <https://www.python.org/>
+
+2. Harris, C. R., Millman, K. J., van der Walt, S. J., et al. (2020). **NumPy** (Version X.X) [Python package].  
+   <https://numpy.org/>
+
+3. The pandas development team. (2023). **pandas** (Version X.X) [Python package].  
+   <https://pandas.pydata.org/>
+
+4. The Polars developers. (2023). **polars** (Version X.X) [Python package].  
+   <https://www.pola.rs/>
+
+5. Hunter, J. D. (2007). **Matplotlib** (Version X.X) [Python package].  
+   <https://matplotlib.org/>
+
+6. Waskom, M. L. (2021). **seaborn** (Version X.X) [Python package].  
+   <https://seaborn.pydata.org/>
+
+7. Pedregosa, F., Varoquaux, G., Gramfort, A., et al. (2011). **scikit-learn** (Version X.X) [Python package].  
+   <https://scikit-learn.org/>
+
+8. Virtanen, P., Gommers, R., Oliphant, T. E., et al. (2020). **SciPy** (Version X.X) [Python package].  
+   <https://scipy.org/>
+
+9. Seabold, S., & Perktold, J. (2010). **statsmodels** (Version X.X) [Python package].  
+   <https://www.statsmodels.org/>
+
+10. Abadi, M., Barham, P., Chen, J., et al. (2016). **TensorFlow** (Version X.X) [Machine learning framework].  
+    <https://www.tensorflow.org/>
+
+11. Chollet, F. (2015). **Keras** (Version X.X) [Python package].  
+    <https://keras.io/>
+
+12. The Python Software Foundation. (2023). **glob** (Standard library module).  
+    <https://docs.python.org/3/library/glob.html>
+
+13. The Python Software Foundation. (2023). **warnings** (Standard library module).  
+    <https://docs.python.org/3/library/warnings.html>
+
+14. OpenAI. (2023). **ChatGPT** [AI language model].  
+    <https://chat.openai.com>  
+    This document utilized ChatGPT to correct spelling and grammar errors, format APA-style references for Python packages, and for financial research.
+
+## Plots
+
+```{r include-corr-plot, echo=FALSE, out.width='100%', fig.cap=""}
+knitr::include_graphics("Corr-1.png")
+```
+
+```{r include-hist-plot, echo=FALSE, out.width='100%', fig.cap=""}
+knitr::include_graphics("FinalDF-Hist.png")
+```
+
+```{r include-rvgs-plot, echo=FALSE, out.width='100%', fig.cap="Data Distribution"}
+knitr::include_graphics("RV-GS.png")
+```
 
 ## Model Architecture
 
 ### LSTM
 
-+---------------------+------------------+-------------+
-| **Layer (type)**    | **Output Shape** | **Param #** |
-+:====================+:=================+============:+
-| lstm_8 (LSTM)       | (None, 30, 64)   | 25,088      |
-+---------------------+------------------+-------------+
-| dropout_8 (Dropout) | (None, 30, 64)   | 0           |
-+---------------------+------------------+-------------+
-| lstm_9 (LSTM)       | (None, 32)       | 12,416      |
-+---------------------+------------------+-------------+
-| dropout_9 (Dropout) | (None, 32)       | 0           |
-+---------------------+------------------+-------------+
-| dense_8 (Dense)     | (None, 16)       | 528         |
-+---------------------+------------------+-------------+
-| dense_9 (Dense)     | (None, 1)        | 17          |
-+---------------------+------------------+-------------+
+<table style="
+  width:100%;
+  border-collapse: collapse;
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.3;
+">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">
+        Layer&nbsp;(type)
+      </th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">
+        Output&nbsp;Shape
+      </th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:right;font-weight:bold;">
+        Param&nbsp;#
+      </th>
+    </tr>
+  </thead>
 
-:::::: {style="
+  <tbody>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        lstm_8&nbsp;(<span style="color:#0087ff;">LSTM</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">25,088</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_8&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        lstm_9&nbsp;(<span style="color:#0087ff;">LSTM</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">32</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">12,416</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_9&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">32</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_8&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">16</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">528</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_9&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">1</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">17</span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="
   font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
   line-height: 1.4;
-"}
-<div>
-
-<strong>Total params:</strong> [38,049]{style="color:#00af00;"} (148.63 KB)
-
+">
+  <div><strong>Total&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">38,049</span>&nbsp;(148.63&nbsp;KB)</div>
+  <div><strong>Trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">38,049</span>&nbsp;(148.63&nbsp;KB)</div>
+  <div><strong>Non-trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">0</span>&nbsp;(0.00&nbsp;B)</div>
 </div>
 
-<div>
 
-<strong>Trainable params:</strong> [38,049]{style="color:#00af00;"} (148.63 KB)
-
-</div>
-
-<div>
-
-<strong>Non-trainable params:</strong> [0]{style="color:#00af00;"} (0.00 B)
-
-</div>
-::::::
 
 ### Transformer
 
 <!-- Colour-coded, full-width model summary with connections -->
+<table style="
+  width:100%;
+  border-collapse: collapse;
+  font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
+  line-height: 1.3;
+  table-layout: fixed;
+  word-wrap: break-word;
+">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Layer&nbsp;(type)</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Output&nbsp;Shape</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:right;font-weight:bold;">Param&nbsp;#</th>
+      <th style="border:1px solid #666;padding:8px 12px;text-align:left;font-weight:bold;">Connected&nbsp;to</th>
+    </tr>
+  </thead>
 
-+-----------------+-----------------+-------------+-----------------+
-| *               | *               | **Param #** | *               |
-| *Layer (type)** | *Output Shape** |             | *Connected to** |
-+:================+:================+============:+:================+
-| input_lay       | (None, 30, 23)  | 0           | –               |
-| er (InputLayer) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| dense (Dense)   | (None, 30, 64)  | 1,536       | input_          |
-|                 |                 |             | layer\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
-| multi_head_     | (None, 30, 64)  | 16,640      | dense\[0\]      |
-| attention (Mult |                 |             | \[0\] (q, k, v) |
-| iHeadAttention) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| add (Add)       | (None, 30, 64)  | 0           | dense\[         |
-|                 |                 |             | 0\]\[0\], multi |
-|                 |                 |             | _head_attention |
-+-----------------+-----------------+-------------+-----------------+
-| layer_norm      | (None, 30, 64)  | 128         | add\[0\]\[0\]   |
-| alization (Laye |                 |             |                 |
-| rNormalization) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| dense_1 (Dense) | (None, 30, 256) | 16,640      | laye            |
-|                 |                 |             | r_normalization |
-+-----------------+-----------------+-------------+-----------------+
-| dense_2 (Dense) | (None, 30, 64)  | 16,448      | de              |
-|                 |                 |             | nse_1\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
-| drop            | (None, 30, 64)  | 0           | de              |
-| out_1 (Dropout) |                 |             | nse_2\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
-| add_1 (Add)     | (None, 30, 64)  | 0           | layer_norm      |
-|                 |                 |             | alization, drop |
-|                 |                 |             | out_1\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
-| layer_normal    | (None, 30, 64)  | 128         | add_1\[0\]\[0\] |
-| ization_2 (Laye |                 |             |                 |
-| rNormalization) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| multi_head_at   | (None, 30, 64)  | 16,640      | layer_          |
-| tention_2 (Mult |                 |             | normalization_2 |
-| iHeadAttention) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| add_2 (Add)     | (None, 30, 64)  | 0           | layer_normaliza |
-|                 |                 |             | tion_2, multi_h |
-|                 |                 |             | ead_attention_2 |
-+-----------------+-----------------+-------------+-----------------+
-| layer_normal    | (None, 30, 64)  | 128         | add_2\[0\]\[0\] |
-| ization_3 (Laye |                 |             |                 |
-| rNormalization) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| dense_3 (Dense) | (None, 30, 256) | 16,640      | layer_          |
-|                 |                 |             | normalization_3 |
-+-----------------+-----------------+-------------+-----------------+
-| dense_4 (Dense) | (None, 30, 64)  | 16,448      | de              |
-|                 |                 |             | nse_3\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
-| drop            | (None, 30, 64)  | 0           | de              |
-| out_3 (Dropout) |                 |             | nse_4\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
-| add_3 (Add)     | (None, 30, 64)  | 0           | layer_normal    |
-|                 |                 |             | ization_3, drop |
-|                 |                 |             | out_3\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
-| layer_normal    | (None, 30, 64)  | 128         | add_3\[0\]\[0\] |
-| ization_4 (Laye |                 |             |                 |
-| rNormalization) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| gl              | (None, 64)      | 0           | layer_          |
-| obal_average_po |                 |             | normalization_4 |
-| oling (GlobalAv |                 |             |                 |
-| eragePooling1D) |                 |             |                 |
-+-----------------+-----------------+-------------+-----------------+
-| drop            | (None, 64)      | 0           | global_         |
-| out_4 (Dropout) |                 |             | average_pooling |
-+-----------------+-----------------+-------------+-----------------+
-| dense_5 (Dense) | (None, 1)       | 65          | drop            |
-|                 |                 |             | out_4\[0\]\[0\] |
-+-----------------+-----------------+-------------+-----------------+
+  <tbody>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        input_layer&nbsp;(<span style="color:#0087ff;">InputLayer</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">23</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">–</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">1,536</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        input_layer[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
 
-:::::: {style="
+    <!-- 3 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        multi_head_attention&nbsp;(<span style="color:#0087ff;">MultiHeadAttention</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]&nbsp;(q,&nbsp;k,&nbsp;v)
+      </td>
+    </tr>
+
+    <!-- 4 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>],&nbsp;multi_head_attention
+      </td>
+    </tr>
+
+    <!-- 5 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 6 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_1&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">256</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization
+      </td>
+    </tr>
+
+    <!-- 7 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_2&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,448</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 8 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_1&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_2[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 9 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_1&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization,&nbsp;dropout_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 10 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_1[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 11 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        multi_head_attention_2&nbsp;(<span style="color:#0087ff;">MultiHeadAttention</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2
+      </td>
+    </tr>
+
+    <!-- 12 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_2&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_2,&nbsp;multi_head_attention_2
+      </td>
+    </tr>
+
+    <!-- 13 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_2[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 14 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_3&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">256</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,640</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3
+      </td>
+    </tr>
+
+    <!-- 15 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_4&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">16,448</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 16 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_3&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_4[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 17 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_3&nbsp;(<span style="color:#0087ff;">Add</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_3,&nbsp;dropout_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 18 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_4&nbsp;(<span style="color:#0087ff;">LayerNormalization</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">30</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">128</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        add_3[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+
+    <!-- 19 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        global_average_pooling&nbsp;(<span style="color:#0087ff;">GlobalAveragePooling1D</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        layer_normalization_4
+      </td>
+    </tr>
+
+    <!-- 20 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_4&nbsp;(<span style="color:#0087ff;">Dropout</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">64</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">0</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        global_average_pooling
+      </td>
+    </tr>
+
+    <!-- 21 -->
+    <tr>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dense_5&nbsp;(<span style="color:#0087ff;">Dense</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        (<span style="color:#00d7ff;">None</span>,&nbsp;<span style="color:#00af00;">1</span>)
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;text-align:right;">
+        <span style="color:#00af00;">65</span>
+      </td>
+      <td style="border:1px solid #666;padding:8px 12px;">
+        dropout_4[<span style="color:#00af00;">0</span>][<span style="color:#00af00;">0</span>]
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="
   font-family: Menlo, 'DejaVu Sans Mono', Consolas, 'Courier New', monospace;
   line-height: 1.4;
-"}
-<div>
-
-<strong>Total params:</strong> [101,569]{style="color:#00af00;"} (396.75 KB)
-
+">
+  <div><strong>Total&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">101,569</span>&nbsp;(396.75&nbsp;KB)</div>
+  <div><strong>Trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">101,569</span>&nbsp;(396.75&nbsp;KB)</div>
+  <div><strong>Non-trainable&nbsp;params:</strong>&nbsp;<span style="color:#00af00;">0</span>&nbsp;(0.00&nbsp;B)</div>
 </div>
-
-<div>
-
-<strong>Trainable params:</strong> [101,569]{style="color:#00af00;"} (396.75 KB)
-
-</div>
-
-<div>
-
-<strong>Non-trainable params:</strong> [0]{style="color:#00af00;"} (0.00 B)
-
-</div>
-::::::
 
 ## Code
 
@@ -724,7 +1503,8 @@ import pandas as pd
 import polars as pl                       
 
 # Visualization
-import matplotlib.pyplot as plt           
+import matplotlib.pyplot as plt      
+import seaborn as sns
 
 # File handling
 from glob import glob                     
@@ -1086,6 +1866,152 @@ selected_stock_ids = [1, 5, 7, 8, 22, 27, 32, 44, 50, 55,
 df = pd.read_parquet("Data/112Stocks.parquet")
 df = df[df["stock_id"].isin(selected_stock_ids)]
 df.to_parquet("Data/30Stocks.parquet")
+```
+
+### Exploratory data analysis
+
+```{python, eval=FALSE}
+def plot_spread_distribution(df):
+    plt.figure(figsize=(12, 6))
+    upper_bound = df['spread1'].quantile(0.99)
+    plot_data_filtered = df['spread1'][df['spread1'] <= upper_bound]
+    sns.histplot(plot_data_filtered, kde=True, bins=100, color='skyblue')
+    plt.title('Distribution of Level 1 Bid-Ask Spread (spread1) - Full Dataset', fontsize=16)
+    plt.xlabel('Spread (Ask Price 1 - Bid Price 1)', fontsize=12)
+    plt.ylabel('Frequency', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig("spread_distribution_full_dpi600.png", dpi=600)
+    plt.show()
+
+def plot_spread_by_stock(df, num_stocks_to_plot=20):
+    plt.figure(figsize=(15, 8))
+    unique_stocks = df['stock_id'].unique()
+    if len(unique_stocks) > num_stocks_to_plot:
+        sampled_stocks = np.random.choice(unique_stocks, num_stocks_to_plot, replace=False)
+        plot_df = df[df['stock_id'].isin(sampled_stocks)]
+        title_suffix = f'(Sample of {num_stocks_to_plot} Stocks)'
+    else:
+        plot_df = df
+        title_suffix = '(All Stocks)'
+    spread_cap = plot_df['spread1'].quantile(0.995)
+    plot_df_filtered = plot_df[plot_df['spread1'] <= spread_cap]
+    sns.boxplot(x='stock_id', y='spread1', data=plot_df_filtered, palette='viridis', showfliers=False)
+    plt.title(f'Level 1 Bid-Ask Spread by Stock ID {title_suffix} - Full Data per Stock', fontsize=16)
+    plt.xlabel('Stock ID', fontsize=12)
+    plt.ylabel('Spread (Ask Price 1 - Bid Price 1)', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig("spread_by_stock_full_dpi600.png", dpi=600)
+    plt.show()
+
+def plot_volume_distribution_by_stock(df, stock_id_to_plot):
+    stock_df = df[df['stock_id'] == stock_id_to_plot]
+    if stock_df.empty:
+        return
+    plt.figure(figsize=(14, 7))
+    plt.subplot(1, 2, 1)
+    sns.histplot(stock_df['bid_size1'], kde=False, bins=50, color='coral', log_scale=(False, True)) 
+    plt.title(f'Distribution of Bid Size 1 for Stock {stock_id_to_plot}', fontsize=14)
+    plt.xlabel('Bid Size 1 (Volume)', fontsize=12)
+    plt.ylabel('Log Frequency', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.subplot(1, 2, 2)
+    sns.histplot(stock_df['ask_size1'], kde=False, bins=50, color='lightblue', log_scale=(False, True))
+    plt.title(f'Distribution of Ask Size 1 for Stock {stock_id_to_plot}', fontsize=14)
+    plt.xlabel('Ask Size 1 (Volume)', fontsize=12)
+    plt.ylabel('Log Frequency', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.suptitle(f'Volume Distributions at Level 1 for Stock ID: {stock_id_to_plot} - Full Data', fontsize=16, y=1.02)
+    plt.tight_layout()
+    plt.savefig(f"volume_dist_stock_{stock_id_to_plot}_full_dpi600.png", dpi=600)
+    plt.show()
+
+def plot_avg_price_levels_in_bucket(df, stock_id_to_plot):
+    stock_df = df[df['stock_id'] == stock_id_to_plot].copy()
+    if stock_df.empty:
+        return
+    avg_prices = stock_df.groupby('seconds_in_bucket')[['bid_price1', 'ask_price1', 'bid_price2', 'ask_price2']].mean().reset_index()
+    avg_prices.sort_values('seconds_in_bucket', inplace=True)
+    plt.figure(figsize=(14, 7))
+    plt.plot(avg_prices['seconds_in_bucket'], avg_prices['ask_price2'], label='Ask Price 2 (Avg)', color='red', linestyle='--')
+    plt.plot(avg_prices['seconds_in_bucket'], avg_prices['ask_price1'], label='Ask Price 1 (Avg)', color='salmon', linestyle='-')
+    plt.plot(avg_prices['seconds_in_bucket'], avg_prices['bid_price1'], label='Bid Price 1 (Avg)', color='skyblue', linestyle='-')
+    plt.plot(avg_prices['seconds_in_bucket'], avg_prices['bid_price2'], label='Bid Price 2 (Avg)', color='blue', linestyle='--')
+    plt.title(f'Average Price Levels in Bucket for Stock ID: {stock_id_to_plot} - Full Data', fontsize=16)
+    plt.xlabel('Seconds in Bucket', fontsize=12)
+    plt.ylabel('Average Price', fontsize=12)
+    plt.legend(fontsize=10)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(f"avg_price_levels_stock_{stock_id_to_plot}_full_dpi600.png", dpi=600)
+    plt.show()
+
+def plot_correlation_heatmap(df):
+    features = ['bid_price1', 'ask_price1', 'bid_price2', 'ask_price2',
+                'bid_size1', 'ask_size1', 'bid_size2', 'ask_size2', 'spread1', 'mid_price1']
+    correlation_matrix = df[features].corr()
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5, annot_kws={"size":10})
+    plt.title('Correlation Heatmap of LOB Features - Full Dataset', fontsize=16)
+    plt.xticks(rotation=45, ha='right', fontsize=10)
+    plt.yticks(rotation=0, fontsize=10)
+    plt.tight_layout()
+    plt.savefig("correlation_heatmap_full_dpi600.png", dpi=600)
+    plt.show()
+
+def plot_avg_sizes_by_stock(df, num_stocks_to_plot=20):
+    unique_stocks = df['stock_id'].unique()
+    if len(unique_stocks) > num_stocks_to_plot:
+        sampled_stocks = np.random.choice(unique_stocks, num_stocks_to_plot, replace=False)
+        plot_df = df[df['stock_id'].isin(sampled_stocks)]
+        title_suffix = f'(Sample of {num_stocks_to_plot} Stocks)'
+    else:
+        plot_df = df
+        title_suffix = '(All Stocks)'
+    avg_sizes = plot_df.groupby('stock_id')[['bid_size1', 'ask_size1', 'bid_size2', 'ask_size2']].mean().reset_index()
+    avg_sizes_melted = avg_sizes.melt(id_vars='stock_id', var_name='Size_Type', value_name='Average_Size')
+    if not avg_sizes_melted.empty:
+        upper_ylimit = avg_sizes_melted['Average_Size'].quantile(0.98)
+    else:
+        upper_ylimit = None 
+    plt.figure(figsize=(15, 8))
+    sns.barplot(x='stock_id', y='Average_Size', hue='Size_Type', data=avg_sizes_melted, palette='Paired')
+    if upper_ylimit is not None:
+        plt.ylim(0, upper_ylimit * 1.1) 
+    plt.title(f'Average Order Book Sizes (Levels 1 & 2) by Stock ID {title_suffix} - Full Data for Averages', fontsize=16)
+    plt.xlabel('Stock ID', fontsize=12)
+    plt.ylabel('Average Size (Volume)', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.legend(title='Size Type', fontsize=10)
+    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig("avg_sizes_by_stock_full_dpi600.png", dpi=600)
+    plt.show()
+```
+
+```{python, eval=FALSE}
+plt.style.use('seaborn-v0_8-whitegrid')
+
+lob_df = pd.read_parquet("DATA3888/Optiver-07/Data/FE30Stocks.parquet")
+lob_df['spread1'] = lob_df['ask_price1'] - lob_df['bid_price1']
+lob_df['spread2'] = lob_df['ask_price2'] - lob_df['bid_price2']
+lob_df['mid_price1'] = (lob_df['bid_price1'] + lob_df['ask_price1']) / 2
+
+plot_spread_distribution(lob_df)
+
+plot_spread_by_stock(lob_df, num_stocks_to_plot=30)
+
+available_stock_ids = lob_df['stock_id'].unique()
+if len(available_stock_ids) > 0:
+    sample_stock_id_for_volume = available_stock_ids[0] 
+    plot_volume_distribution_by_stock(lob_df, stock_id_to_plot=sample_stock_id_for_volume)
+    plot_avg_price_levels_in_bucket(lob_df, stock_id_to_plot=sample_stock_id_for_volume)
+    
+plot_correlation_heatmap(lob_df)
+
+plot_avg_sizes_by_stock(lob_df, num_stocks_to_plot30)
 ```
 
 ### Feature Engineering
@@ -1646,18 +2572,4 @@ def qlike_safe(actual, forecast, eps=1e-12):
 
 ql = qlike_safe(actuals, predictions)
 print("QLIKE:", ql)
-```
-
-## Plots
-
-```{r include-corr-plot, echo=FALSE, out.width='100%', fig.cap=""}
-knitr::include_graphics("Corr-1.png")
-```
-
-```{r include-hist-plot, echo=FALSE, out.width='100%', fig.cap=""}
-knitr::include_graphics("FinalDF-Hist.png")
-```
-
-```{r include-rvgs-plot, echo=FALSE, out.width='100%', fig.cap="Data Distribution"}
-knitr::include_graphics("RV-GS.png")
 ```
