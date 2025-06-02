@@ -11,6 +11,7 @@ arch==7.2.0
 argon2-cffi==23.1.0
 argon2-cffi-bindings==21.2.0
 arrow==1.3.0
+arviz==0.21.0
 asttokens==3.0.0
 astunparse==1.6.3
 async-lru==2.0.5
@@ -18,7 +19,9 @@ attrs==25.3.0
 babel==2.17.0
 beautifulsoup4==4.13.3
 bleach==6.2.0
+blinker==1.9.0
 bokeh==3.7.2
+cachetools==5.5.2
 certifi==2025.1.31
 cffi==1.17.1
 charset-normalizer==3.4.1
@@ -27,8 +30,11 @@ cloudpickle==3.1.1
 colorcet==3.1.0
 colorlog==6.9.0
 comm==0.2.2
+cons==0.4.6
 contourpy==1.3.1
 cycler==0.12.1
+dash==3.0.4
+dash-bootstrap-components==2.0.2
 dask==2025.3.0
 dask-glm==0.3.2
 dask-ml==2025.1.0
@@ -40,9 +46,11 @@ decorator==5.2.1
 defusedxml==0.7.1
 distributed==2025.3.0
 duckdb==1.2.2
+etuples==0.3.9
 executing==2.2.0
 fastjsonschema==2.21.1
 filelock==3.18.0
+Flask==3.0.3
 flatbuffers==25.2.10
 fonttools==4.56.0
 fqdn==1.5.1
@@ -54,6 +62,7 @@ gast==0.6.0
 google-pasta==0.2.0
 grpcio==1.71.0
 h11==0.16.0
+h5netcdf==1.6.1
 h5py==3.13.0
 holoviews==1.20.2
 htmlmin==0.1.12
@@ -62,12 +71,14 @@ httpx==0.28.1
 hyperopt==0.2.7
 idna==3.10
 ImageHash==4.3.2
+importlib_metadata==8.7.0
 ipykernel==6.29.5
 ipython==9.0.2
 ipython-genutils==0.2.0
 ipython_pygments_lexers==1.1.1
 ipywidgets==8.1.5
 isoduration==20.11.0
+itsdangerous==2.2.0
 jedi==0.19.2
 Jinja2==3.1.6
 joblib==1.4.2
@@ -95,6 +106,7 @@ lightning-utilities==0.14.3
 linkify-it-py==2.0.3
 llvmlite==0.44.0
 locket==1.0.0
+logical-unification==0.4.6
 Mako==1.3.10
 Markdown==3.7
 markdown-it-py==3.0.0
@@ -103,6 +115,7 @@ matplotlib==3.10.1
 matplotlib-inline==0.1.7
 mdit-py-plugins==0.4.2
 mdurl==0.1.2
+miniKanren==1.0.3
 missingno==0.5.2
 mistune==3.1.3
 ml_dtypes==0.5.1
@@ -158,7 +171,9 @@ pydantic==2.11.2
 pydantic_core==2.33.1
 Pygments==2.19.1
 pykalman==0.10.1
+pymc==5.22.0
 pyparsing==3.2.3
+pytensor==2.30.3
 python-dateutil==2.9.0.post0
 python-json-logger==3.3.0
 pytorch-forecasting==1.3.0
@@ -171,6 +186,7 @@ PyYAML==6.0.2
 pyzmq==26.3.0
 referencing==0.36.2
 requests==2.32.3
+retrying==1.3.4
 rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1
 rich==13.9.4
@@ -222,13 +238,15 @@ wcwidth==0.2.13
 webcolors==24.11.1
 webencodings==0.5.1
 websocket-client==1.8.0
-Werkzeug==3.1.3
+Werkzeug==3.0.6
 wheel==0.45.1
 widgetsnbextension==4.0.13
 wrapt==1.17.2
 xarray==2025.3.1
+xarray-einstats==0.8.0
 xgboost==3.0.0
 xyzservices==2025.1.0
 yarl==1.19.0
 yfinance==0.2.55
 zict==3.0.0
+zipp==3.21.0

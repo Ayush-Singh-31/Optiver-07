@@ -1,7 +1,5 @@
 .DS_Store
 /volt
 /Data
-/cache/.local
 **/.DS_Store
-/Test
-Notes.txt
+/Misc
